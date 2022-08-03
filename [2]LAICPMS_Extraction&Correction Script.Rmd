@@ -206,7 +206,7 @@ Delta_Ca <- (Runs_612[[j]]$Ca43[x+3] - Runs_612[[j]]$Ca43[x])/(Runs_612[[j]]$`Ti
 
 Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
 # In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
-Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
 Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
 Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
 
@@ -242,7 +242,9 @@ Analysis <- Runs_612[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_612[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -440,7 +442,9 @@ Analysis <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_JCP[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -643,8 +647,9 @@ Analysis <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_DSC[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -844,8 +849,9 @@ Analysis <- Runs_Sample_23_16_1[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_1[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1043,8 +1049,9 @@ Analysis <- Runs_Sample_23_16_2[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_2[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1242,7 +1249,9 @@ Analysis <- Runs_Sample_23_16_3[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_3[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1442,8 +1451,9 @@ Analysis <- Runs_Sample_23_1_1[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
-
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_1[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1641,7 +1651,9 @@ Analysis <- Runs_Sample_23_1_2[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_2[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1839,7 +1851,9 @@ Analysis <- Runs_Sample_23_1_3[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_3[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2039,8 +2053,9 @@ Analysis <- Runs_Sample_23_10_1[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_1[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2155,6 +2170,8 @@ Calculations_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Calculation
 
 }
 
+plot_a_list(Li_Ca_ratios_Sample_23_10_1, 2,3, ylim = c(0,0.05), xlim = c(0,300))
+
 plot_a_list(Elementdata_Sample_23_10_1, 2,3)
 
 ggsave(
@@ -2238,7 +2255,9 @@ Analysis <- Runs_Sample_23_10_2[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_2[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2436,7 +2455,9 @@ Analysis <- Runs_Sample_23_10_3[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_3[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2551,6 +2572,7 @@ Calculations_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Calculation
 
 }
 
+
 plot_a_list(Elementdata_Sample_23_10_3, 2,3)
 
 ggsave(
@@ -2636,7 +2658,9 @@ Analysis <- Runs_Sample_23_6_1[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_1[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2834,7 +2858,9 @@ Analysis <- Runs_Sample_23_6_2[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_2[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -3032,7 +3058,9 @@ Analysis <- Runs_Sample_23_6_3[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(Allblanks, Analysis)
+Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_3[[j]])
+Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
+row.names(Analysis_full) <- NULL
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
