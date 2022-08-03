@@ -2,9 +2,9 @@
 title: "LAICPMS_Extraction&Correction Script"
 author: "Thomas J Williams"
 date: "16/05/2022"
-version: "2.00"
+version: "2.01"
 edited by: "Thomas J Williams"
-edit date: "29/06/2022"
+edit date: "03/08/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -42,16 +42,17 @@ if (i %in% rownames(installed.packages()) == FALSE)
   }
 }
 
-plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim) {
-  if(missing(ylim) | missing(xlim)) {
+# plotting multiple plots in a list
+plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim, ylab, xlab) {
+  if(missing(ylim) | missing(xlim) | missing(ylab) | missing(xlab)) {
     patchwork::wrap_plots(master_list_with_plots, 
-                        nrow = no_of_rows, ncol = no_of_cols,
-                        guides = "collect")
+                        nrow = no_of_rows, ncol = no_of_cols)
   } else {
       patchwork::wrap_plots(master_list_with_plots, 
-                        nrow = no_of_rows, ncol = no_of_cols,
-                        guides = "collect") &
-  ggplot2::lims(y = ylim, x = xlim)
+                        nrow = no_of_rows, ncol = no_of_cols) &
+  ggplot2::lims(y = ylim, x = xlim) &
+      ggplot2::xlab(label = xlab) &
+      ggplot2::ylab(label = ylab)
   }
 }
 ```
@@ -150,6 +151,7 @@ Sample_list <- ICPMS_directories_tidy %>%
 write.csv(Sample_list, "Sample_list.csv")
 ```
 
+CHUNK 5 - DATA PROCESSING
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 ```{r data processing, echo = F, message=T}
 # This will be different for each corals sample + standards
@@ -169,7 +171,8 @@ Runs_Sample_23_10_3 <- ICPMS_csvfiles_tidy[c("A72","A73","A74","A75","A76")]
 Runs_Sample_23_6_1 <- ICPMS_csvfiles_tidy[c("A80","A81","A82","A83","A84")]
 Runs_Sample_23_6_2 <- ICPMS_csvfiles_tidy[c("A88","A89","A90","A91","A92")]
 Runs_Sample_23_6_3 <- ICPMS_csvfiles_tidy[c("A96","A97","A98","A99","A100")]
-Signals_graph_folder <- "~/Library/CloudStorage/OneDrive-UniversityofSouthampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Element_Signals/"
+
+Signals_graph_folder <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Element_Signals"
 
 # 612 standards code ####
 Analysis_612 <- list()
@@ -201,7 +204,7 @@ Delta_Ca <- (Runs_612[[j]]$Ca43[x+3] - Runs_612[[j]]$Ca43[x])/(Runs_612[[j]]$`Ti
   Delta_Ca_dataframe
 }
 
-Cut_off1 <- max(Delta_Ca_dataframe$Delta_Ca, na.rm = T)
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
 # In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
 Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
 Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
@@ -236,7 +239,7 @@ Postblank <- Runs_612[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_612[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% # analysis started at 35 seconds
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
@@ -384,24 +387,44 @@ for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_JCP[[j]])[a], color =  shQuote(names(Runs_JCP[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_JCP[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_JCP[[j]][7]), " for Runs_JCP_", j))} # Ca43
+
+Time_length <- length(Runs_JCP[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_JCP[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_JCP[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_JCP[[j]]$Ca43[x+3] - Runs_JCP[[j]]$Ca43[x])/(Runs_JCP[[j]]$`Time [Sec]`[x+3] - Runs_JCP[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_JCP[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_JCP[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 32, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_JCP[[j]]$`Time [Sec]`, na.rm = T)-52, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_JCP[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_JCP[j]), "_Elementsignals"), datapoints)
-Elementdata_JCP[[paste0(names(Runs_JCP[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_JCP[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_JCP[[paste0(names(Runs_JCP[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
@@ -414,7 +437,7 @@ Postblank <- Runs_JCP[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_JCP[[j]] %>%
-  filter(`Time [Sec]` >= 32 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-52) %>% # analysis started at 32 seconds and finished 52 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
@@ -538,6 +561,7 @@ ggsave(
   "JCP_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 30,
   height = 40,
@@ -545,6 +569,9 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
+
+plot_a_list(Elementdata_612, 7,2)
+
 
 plot_a_list(Li_Ca_ratios_JCP, 7,2, ylim = c(0,.01), xlim = c(0,200))
 
@@ -560,28 +587,47 @@ nc<-wes_palette(length(names(Runs_DSC[[j]][2:11])), name="Darjeeling1", type="co
 datapoints <- ggplot(data = Runs_DSC[[j]], aes(x = `Time [Sec]`)) 
 
 for (a in 2:11) {
-  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_DSC[[j]])[a], color =  shQuote(names(Runs_DSC[[j]])[a])))
+  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_JCP[[j]])[a], color =  shQuote(names(Runs_JCP[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_DSC[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_DSC[[j]][7]), " for Runs_DSC_", j))} # Ca43
+
+Time_length <- length(Runs_DSC[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_DSC[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_DSC[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_DSC[[j]]$Ca43[x+3] - Runs_DSC[[j]]$Ca43[x])/(Runs_DSC[[j]]$`Time [Sec]`[x+3] - Runs_DSC[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_DSC[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_DSC[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 32, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_DSC[[j]]$`Time [Sec]`, na.rm = T)-52, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_DSC[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_DSC[j]), "_Elementsignals"), datapoints)
-Elementdata_DSC[[paste0(names(Runs_DSC[j]), "_Elementsignals")]] <- datapoints
-
+assign(paste0(names(Runs_DSC[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_DSC[[paste0(names(Runs_DSC[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
@@ -594,8 +640,9 @@ Postblank <- Runs_DSC[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_DSC[[j]] %>%
-  filter(`Time [Sec]` >= 32 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-52) %>% # analysis started at 32 seconds and finished 52 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
+
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
@@ -718,6 +765,7 @@ ggsave(
   "DSC_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 30,
   height = 40,
@@ -743,25 +791,44 @@ for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_16_1[[j]])[a], color =  shQuote(names(Runs_Sample_23_16_1[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_16_1[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_16_1[[j]][7]), " for Runs_Sample_23_16_1_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_16_1[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_16_1[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_16_1[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_16_1[[j]]$Ca43[x+3] - Runs_Sample_23_16_1[[j]]$Ca43[x])/(Runs_Sample_23_16_1[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_16_1[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_16_1[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_16_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 40, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_16_1[[j]]$`Time [Sec]`, na.rm = T)-56, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals")]] <- datapoints
-
+assign(paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_16_1[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
@@ -774,8 +841,9 @@ Postblank <- Runs_Sample_23_16_1[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_1[[j]] %>%
-  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 40 seconds and finished 56 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
+
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
@@ -898,6 +966,7 @@ ggsave(
   "Sample_23_16_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -918,41 +987,62 @@ nc<-wes_palette(length(names(Runs_Sample_23_16_2[[j]][2:11])), name="Darjeeling1
 datapoints <- ggplot(data = Runs_Sample_23_16_2[[j]], aes(x = `Time [Sec]`)) 
 
 for (a in 2:11) {
-  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_16_2[[j]])[a], color =  shQuote(names(Runs_Sample_23_16_2[[j]])[a])))
+  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_JCP[[j]])[a], color =  shQuote(names(Runs_JCP[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_16_2[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_16_2[[j]][7]), " for Runs_Sample_23_16_2_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_16_2[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_16_2[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_16_2[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_16_2[[j]]$Ca43[x+3] - Runs_Sample_23_16_2[[j]]$Ca43[x])/(Runs_Sample_23_16_2[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_16_2[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_16_2[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_16_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 40, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_16_2[[j]]$`Time [Sec]`, na.rm = T)-56, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_16_2[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_16_2[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_16_2[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-50) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_2[[j]] %>%
-  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 32 seconds and finished 56 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
+
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
@@ -1075,6 +1165,7 @@ ggsave(
   "Sample_23_16_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1094,28 +1185,48 @@ for (j in 1:length(Runs_Sample_23_16_3)) {
 nc<-wes_palette(length(names(Runs_Sample_23_16_2[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_16_3[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_16_3[[j]])[a], color =  shQuote(names(Runs_Sample_23_16_3[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_16_3[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_16_3[[j]][7]), " for Runs_Sample_23_16_3_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_16_3[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_16_3[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_16_3[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_16_3[[j]]$Ca43[x+3] - Runs_Sample_23_16_3[[j]]$Ca43[x])/(Runs_Sample_23_16_3[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_16_3[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_16_3[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_16_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 38, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_16_3[[j]]$`Time [Sec]`, na.rm = T)-58, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_16_3[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
@@ -1128,19 +1239,10 @@ Postblank <- Runs_Sample_23_16_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_3[[j]] %>%
-  filter(`Time [Sec]` >= 38 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-58) %>% # analysis started at 38 seconds and finished 58 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1261,6 +1363,7 @@ ggsave(
   "Sample_23_16_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1282,53 +1385,65 @@ for (j in 1:length(Runs_Sample_23_1_1)) {
 nc<-wes_palette(length(names(Runs_Sample_23_1_1[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_1_1[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_1_1[[j]])[a], color =  shQuote(names(Runs_Sample_23_1_1[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_1_1[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_1_1[[j]][7]), " for Runs_Sample_23_1_1_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_1_1[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_1_1[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_1_1[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_1_1[[j]]$Ca43[x+3] - Runs_Sample_23_1_1[[j]]$Ca43[x])/(Runs_Sample_23_1_1[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_1_1[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_1_1[[j]]$`Time [Sec]`, na.rm = T)) +
-  geom_vline(xintercept = max(Runs_Sample_23_1_1[[j]]$`Time [Sec]`, na.rm = T)-48) + #postblank cut off
-  geom_vline(xintercept = 41, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_1_1[[j]]$`Time [Sec]`, na.rm = T)-58, linetype = 2) + # end of analysis
+  geom_vline(xintercept = max(Runs_Sample_23_1_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_1[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_1[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_1[[j]] %>%
-  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-58) %>% # analysis started at 41 seconds and finished 58 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1449,6 +1564,7 @@ ggsave(
   "Sample_23_1_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1468,53 +1584,64 @@ for (j in 1:length(Runs_Sample_23_1_2)) {
 nc<-wes_palette(length(names(Runs_Sample_23_1_2[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_1_2[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_1_2[[j]])[a], color =  shQuote(names(Runs_Sample_23_1_2[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_1_2[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_1_2[[j]][7]), " for Runs_Sample_23_1_2_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_1_2[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_1_2[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_1_2[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_1_2[[j]]$Ca43[x+3] - Runs_Sample_23_1_2[[j]]$Ca43[x])/(Runs_Sample_23_1_2[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_1_2[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
   geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_1_2[[j]]$`Time [Sec]`, na.rm = T)) +
-  geom_vline(xintercept = max(Runs_Sample_23_1_2[[j]]$`Time [Sec]`, na.rm = T)-48) + #postblank cut off
-  geom_vline(xintercept = 41, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_1_2[[j]]$`Time [Sec]`, na.rm = T)-59, linetype = 2) + # end of analysis
+  geom_vline(xintercept = max(Runs_Sample_23_1_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_2[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_2[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_2[[j]] %>%
-  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-59) %>% # analysis started at 41 seconds and finished 58 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1635,6 +1762,7 @@ ggsave(
   "Sample_23_1_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1654,53 +1782,64 @@ for (j in 1:length(Runs_Sample_23_1_3)) {
 nc<-wes_palette(length(names(Runs_Sample_23_1_3[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_1_3[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_1_3[[j]])[a], color =  shQuote(names(Runs_Sample_23_1_3[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_1_3[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_1_3[[j]][7]), " for Runs_Sample_23_1_3_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_1_3[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_1_3[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_1_3[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_1_3[[j]]$Ca43[x+3] - Runs_Sample_23_1_3[[j]]$Ca43[x])/(Runs_Sample_23_1_3[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_1_3[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_1_3[[j]]$`Time [Sec]`, na.rm = T)) +
-  geom_vline(xintercept = max(Runs_Sample_23_1_3[[j]]$`Time [Sec]`, na.rm = T)-48) + #postblank cut off
-  geom_vline(xintercept = 40, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_1_3[[j]]$`Time [Sec]`, na.rm = T)-59, linetype = 2) + # end of analysis
+  geom_vline(xintercept = max(Runs_Sample_23_1_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-59) %>% # analysis started at 32 seconds and finished 51 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1821,6 +1960,7 @@ ggsave(
   "Sample_23_1_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1842,53 +1982,65 @@ for (j in 1:length(Runs_Sample_23_10_1)) {
 nc<-wes_palette(length(names(Runs_Sample_23_10_1[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_10_1[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_10_1[[j]])[a], color =  shQuote(names(Runs_Sample_23_10_1[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_10_1[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_10_1[[j]][7]), " for Runs_Sample_23_10_1_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_10_1[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_10_1[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_10_1[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_10_1[[j]]$Ca43[x+3] - Runs_Sample_23_10_1[[j]]$Ca43[x])/(Runs_Sample_23_10_1[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_10_1[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_10_1[[j]]$`Time [Sec]`, na.rm = T)) +
-  geom_vline(xintercept = max(Runs_Sample_23_10_1[[j]]$`Time [Sec]`, na.rm = T)-46) + #postblank cut off
-  geom_vline(xintercept = 40, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_10_1[[j]]$`Time [Sec]`, na.rm = T)-57, linetype = 2) + # end of analysis
+  geom_vline(xintercept = max(Runs_Sample_23_10_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-46) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-57) %>% # analysis started at 35 seconds and finished 55 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
+
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2009,6 +2161,7 @@ ggsave(
   "Sample_23_10_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2028,31 +2181,51 @@ for (j in 1:length(Runs_Sample_23_10_2)) {
 nc<-wes_palette(length(names(Runs_Sample_23_10_2[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_10_2[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_10_2[[j]])[a], color =  shQuote(names(Runs_Sample_23_10_2[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_10_2[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_10_2[[j]][7]), " for Runs_Sample_23_10_2_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_10_2[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_10_2[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_10_2[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_10_2[[j]]$Ca43[x+3] - Runs_Sample_23_10_2[[j]]$Ca43[x])/(Runs_Sample_23_10_2[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_10_2[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_10_2[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_10_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 44, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_10_2[[j]]$`Time [Sec]`, na.rm = T)-55, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_2[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_2[[j]] %>%
@@ -2062,19 +2235,10 @@ Postblank <- Runs_Sample_23_10_2[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_2[[j]] %>%
-  filter(`Time [Sec]` >= 44 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-55) %>% # analysis started at 44 seconds and finished 55 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2195,6 +2359,7 @@ ggsave(
   "Sample_23_10_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2214,31 +2379,51 @@ for (j in 1:length(Runs_Sample_23_10_3)) {
 nc<-wes_palette(length(names(Runs_Sample_23_10_3[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_10_3[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_10_3[[j]])[a], color =  shQuote(names(Runs_Sample_23_10_3[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_10_3[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_10_3[[j]][7]), " for Runs_Sample_23_10_3_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_10_3[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_10_3[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_10_3[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_10_3[[j]]$Ca43[x+3] - Runs_Sample_23_10_3[[j]]$Ca43[x])/(Runs_Sample_23_10_3[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_10_3[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_10_3[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_10_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 41, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_10_3[[j]]$`Time [Sec]`, na.rm = T)-56, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_3[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_3[[j]] %>%
@@ -2248,19 +2433,10 @@ Postblank <- Runs_Sample_23_10_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_3[[j]] %>%
-  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 42 seconds and finished 55 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2381,6 +2557,7 @@ ggsave(
   "Sample_23_10_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2402,31 +2579,51 @@ for (j in 1:length(Runs_Sample_23_6_1)) {
 nc<-wes_palette(length(names(Runs_Sample_23_6_1[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_6_1[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_6_1[[j]])[a], color =  shQuote(names(Runs_Sample_23_6_1[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_6_1[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_6_1[[j]][7]), " for Runs_Sample_23_6_1_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_6_1[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_6_1[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_6_1[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_6_1[[j]]$Ca43[x+3] - Runs_Sample_23_6_1[[j]]$Ca43[x])/(Runs_Sample_23_6_1[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_6_1[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_6_1[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_6_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 47, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_6_1[[j]]$`Time [Sec]`, na.rm = T)-80, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_1[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_1[[j]] %>%
@@ -2436,19 +2633,10 @@ Postblank <- Runs_Sample_23_6_1[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_1[[j]] %>%
-  filter(`Time [Sec]` >= 47 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-80) %>% # analysis started at 47 seconds and finished 80 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2569,6 +2757,7 @@ ggsave(
   "Sample_23_6_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2588,31 +2777,51 @@ for (j in 1:length(Runs_Sample_23_6_2)) {
 nc<-wes_palette(length(names(Runs_Sample_23_6_2[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_6_2[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_6_2[[j]])[a], color =  shQuote(names(Runs_Sample_23_6_2[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_6_2[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_6_2[[j]][7]), " for Runs_Sample_23_6_2_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_6_2[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_6_2[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_6_2[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_6_2[[j]]$Ca43[x+3] - Runs_Sample_23_6_2[[j]]$Ca43[x])/(Runs_Sample_23_6_2[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_6_2[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_6_2[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_6_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 42, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_6_2[[j]]$`Time [Sec]`, na.rm = T)-70, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_2[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_2[[j]] %>%
@@ -2622,19 +2831,10 @@ Postblank <- Runs_Sample_23_6_2[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_2[[j]] %>%
-  filter(`Time [Sec]` >= 42 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-70) %>% # analysis started at 42 seconds and finished 70 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2755,6 +2955,7 @@ ggsave(
   "Sample_23_6_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2774,31 +2975,51 @@ for (j in 1:length(Runs_Sample_23_6_3)) {
 nc<-wes_palette(length(names(Runs_Sample_23_6_3[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_6_3[[j]], aes(x = `Time [Sec]`)) 
 
-  for (a in 2:11) {
+for (a in 2:11) {
   datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_6_3[[j]])[a], color =  shQuote(names(Runs_Sample_23_6_3[[j]])[a])))
 }
 
-datapoints <- datapoints + 
+if (names(Runs_Sample_23_6_3[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_6_3[[j]][7]), " for Runs_Sample_23_6_3_", j))} # Ca43
+
+Time_length <- length(Runs_Sample_23_6_3[[j]]$`Time [Sec]`)
+
+Delta_Ca_dataframe <- data.frame(Delta_Ca = as.numeric(rep(NA, Time_length+14)),
+                                 Time = c(Runs_Sample_23_6_3[[j]]$`Time [Sec]`,rep(NA,14))
+                                  )
+
+# Rolling 4 step difference
+for(x in 1:length(Runs_Sample_23_6_3[[j]]$`Time [Sec]`)) {
+Delta_Ca <- (Runs_Sample_23_6_3[[j]]$Ca43[x+3] - Runs_Sample_23_6_3[[j]]$Ca43[x])/(Runs_Sample_23_6_3[[j]]$`Time [Sec]`[x+3] - Runs_Sample_23_6_3[[j]]$`Time [Sec]`[x])
+  Delta_Ca_dataframe$Delta_Ca[x+3]  <- ceiling(Delta_Ca)
+  Delta_Ca_dataframe
+}
+
+Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
+# In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
+Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
+
+datapoints_graph <- datapoints + 
   geom_vline(xintercept = 0) +
-  geom_vline(xintercept = 29) + # preblank cut off
+  geom_vline(xintercept = 30.5) + # preblank cut off
   geom_vline(xintercept = max(Runs_Sample_23_6_3[[j]]$`Time [Sec]`, na.rm = T)) +
   geom_vline(xintercept = max(Runs_Sample_23_6_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
-  geom_vline(xintercept = 42, linetype = 2) + # start of analysis
-  geom_vline(xintercept = max(Runs_Sample_23_6_3[[j]]$`Time [Sec]`, na.rm = T)-70, linetype = 2) + # end of analysis
+  geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
+  geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
+                labels = trans_format("log10", math_format(10^.x))) +
   annotation_logticks(sides = "l") +
-  annotate("text", x = 100, y = 100, hjust = 2, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black") +
+  annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals"), datapoints)
-Elementdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals")]] <- datapoints
+assign(paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals"), datapoints_graph)
+Elementdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_3[[j]] %>%
-  filter(`Time [Sec]` <= 29) %>%
+  filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_3[[j]] %>%
@@ -2808,19 +3029,10 @@ Postblank <- Runs_Sample_23_6_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_3[[j]] %>%
-  filter(`Time [Sec]` >= 42 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-70) %>% # analysis started at 42 seconds and finished 70 seconds before end of ablation
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
 Analysis_full <- full_join(Allblanks, Analysis)
-
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2941,6 +3153,7 @@ ggsave(
   "Sample_23_6_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
