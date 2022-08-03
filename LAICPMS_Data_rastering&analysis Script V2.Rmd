@@ -2,7 +2,9 @@
 title: "LAICPMS_Data_rastering&analysis Script"
 author: "Thomas J Williams"
 date: "26/05/2022"
-version: "V2"
+version: "2.01"
+edited by: "Thomas J Williams"
+edit date: "03/08/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -84,13 +86,24 @@ for(j in 1:length(Samples)) { # 4 samples
     Tracks <- get(paste0("NIST612_Corrected_Sample_",Samples[j],"_",a))
     Element <- colnames(Tracks[[1]])[[i]]
     cat("Sample: ", Samples[j], a, Element, "\n")
-    Tracks_data <- data.frame(Track1 = Tracks[[1]][[i]],
-                              Track2 = Tracks[[2]][[i]],
-                              Track3 = Tracks[[3]][[i]],
-                              Track4 = Tracks[[4]][[i]],
-                              Track5 = Tracks[[5]][[i]]) %>%
-      na.omit()
-    
+    Track1_data <- data.frame(Row = seq(1,nrow(Tracks[[1]]), by = 1),
+                              Track1 = Tracks[[1]][[i]])
+    Track2_data <- data.frame(Row = seq(1,nrow(Tracks[[2]]), by = 1),
+                              Track2 = Tracks[[2]][[i]])
+    Track3_data <- data.frame(Row = seq(1,nrow(Tracks[[3]]), by = 1),
+                              Track3 = Tracks[[3]][[i]])
+    Track4_data <- data.frame(Row = seq(1,nrow(Tracks[[4]]), by = 1),
+                              Track4 = Tracks[[4]][[i]])
+    Track5_data <- data.frame(Row = seq(1,nrow(Tracks[[5]]), by = 1),
+                              Track5 = Tracks[[5]][[i]])
+    Tracks_data <- full_join(full_join(full_join(full_join(Track1_data,
+                                                           Track2_data),
+                                                 Track3_data),
+                                       Track4_data), 
+                             Track5_data) 
+    Tracks_data <- Tracks_data[-c(1:60),] # remove first 60 rows (30 second blank at 0.5s)
+    Tracks_data <- head(Tracks_data, -90) # remove last 90 rows (45 second blank at 0.5s)
+    Tracks_data$Row <- NULL
     assign(paste0(Element), Tracks_data)
     Sample_ratios[[paste0(Element)]] <- Tracks_data
     rm(Tracks_data)
@@ -542,7 +555,7 @@ assign(paste0(Ratios[a], "_raster_list"), Element_raster_list)
 }
 rm(Element_raster_list)
 
-Rasterpath_viridis <- "~/Library/CloudStorage/OneDrive-UniversityofSouthampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_rasters/Interpolated_Viridis/"
+Rasterpath_viridis <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_rasters/Interpolated/"
 b <- 1
 col2 <- viridis(24)
 plot.new()
@@ -552,7 +565,7 @@ for (b in 1:length(Li_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(Li_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,800,by = 5))
+plot(Li_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,120,by = 5))
 mtext(paste0(names(Li_Ca_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(Li_Ca_raster_list[b]), "_viridis_interpolated.png"))
 dev.off()
@@ -850,6 +863,7 @@ ggsave(
   units = "cm",
   dpi = 300,
 )
+
 `Sample_23_10 element ratios` # missing legend for geom_bins
 `Sample_23_10 element ratios [by internode]` # missing legend for geom_bins
 `Sample_23_6 element ratios` # missing legend for geom_bins
@@ -857,11 +871,19 @@ ggsave(
 `Sample_23_1 element ratios` # missing legend for geom_bins
 `Sample_23_1 element ratios [by internode]` # missing legend for geom_bins
 
+
+# EXPERIMENTAL FROM THIS POINT ON
 View(Sample_element_patterns_list)
 
+Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] <- Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>% mutate_all(~ifelse(is.nan(.), NA, .))
+
 ggplot(data = Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]]) +
-  geom_path(aes(x = distance.um, y = mean(Li_Ca, na.rm = T)), col = "grey") +
-  geom_path(aes(x = distance.um, y = mean(Mg_Ca, na.rm = T)/1000), col = "orange") # does not seem right??
+  geom_path(aes(x = distance.um, y = Li_Ca), col = "grey") +
+  geom_path(aes(x = distance.um, y = Mg_Ca/1000), col = "orange") +
+  geom_path(aes(x = distance.um, y = (Li_Ca/Mg_Ca/1000)), col = "red")# does not seem right??
+
+ggplot(data = Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]]) +
+  geom_path(aes(x = distance.um, y = (Li_Ca/(Mg_Ca/1000))), col = "red")# does not seem right??
 
 
 ```
