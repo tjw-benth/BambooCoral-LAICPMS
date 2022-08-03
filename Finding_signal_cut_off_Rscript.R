@@ -23,7 +23,7 @@ Delta_Ca <- (Runs_Sample_23_16_1[[j]]$Ca43[x+3] - Runs_Sample_23_16_1[[j]]$Ca43[
 
 Cut_off1 <- max(Delta_Ca_dataframe$Delta_Ca, na.rm = T)
 # In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
-Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
+Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
 Pre_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off1),]$Time
 Post_blank_cut_off <- Delta_Ca_dataframe[which(Delta_Ca_dataframe$Delta_Ca == Cut_off2),]$Time
 
