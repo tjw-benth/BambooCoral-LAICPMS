@@ -1,0 +1,868 @@
+---
+title: "LAICPMS_Data_rastering&analysis Script"
+author: "Thomas J Williams"
+date: "26/05/2022"
+version: "V2"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r packages and functions, echo = F, message=T}
+
+packages <- c("tidyverse", "janitor", "sjmisc", "Hmisc", "viridis", "ggthemes", "patchwork", "raster", "terra", "GGally")
+rasterpackages <- c("caTools", "scatterplot3d", "wesanderson", "matrixStats", "viridis", "RColorBrewer", "raster", "rasterVis", "hillshader")
+
+options(scipen = 100)
+
+for (i in packages) {
+if (i %in% rownames(installed.packages()) == FALSE) 
+{install.packages(i)
+  require(i, character.only = T)} else {
+    require(i, character.only = T)
+  }
+}
+
+for (i in rasterpackages) {
+if (i %in% rownames(installed.packages()) == FALSE) 
+{install.packages(i)
+  require(i, character.only = T)} else {
+    require(i, character.only = T)
+  }
+}
+
+# plotting multiple plots in a list
+plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim, ylab, xlab) {
+  if(missing(ylim) | missing(xlim) | missing(ylab) | missing(xlab)) {
+    patchwork::wrap_plots(master_list_with_plots, 
+                        nrow = no_of_rows, ncol = no_of_cols)
+  } else {
+      patchwork::wrap_plots(master_list_with_plots, 
+                        nrow = no_of_rows, ncol = no_of_cols) &
+  ggplot2::lims(y = ylim, x = xlim) &
+      ggplot2::xlab(label = xlab) &
+      ggplot2::ylab(label = ylab)
+  }
+}
+
+# pause function
+testit <- function(x)
+{
+    p1 <- proc.time()
+    Sys.sleep(x)
+    proc.time() - p1 # The cpu usage should be negligible
+}
+
+```
+
+## Collating tracks to each coral section (5 adjacent tracks per section)
+
+```{r collating tracks per section - 612 corrected, echo=T, message=T}
+
+View(NIST612_Corrected_Samples)
+detach(package::plyr)
+
+Samples <-c("23_10", "23_6", "23_1", "23_16")
+j <-1
+a<-1
+i <- 70
+
+for(j in 1:length(Samples)) { # 4 samples
+  for(a in 1:3) { # 3 sections
+    Sample_ratios <- list()
+  for(i in 70:78) { # 9 element ratios
+    Tracks <- get(paste0("NIST612_Corrected_Sample_",Samples[j],"_",a))
+    Element <- colnames(Tracks[[1]])[[i]]
+    cat("Sample: ", Samples[j], a, Element, "\n")
+    Tracks_data <- data.frame(Track1 = Tracks[[1]][[i]],
+                              Track2 = Tracks[[2]][[i]],
+                              Track3 = Tracks[[3]][[i]],
+                              Track4 = Tracks[[4]][[i]],
+                              Track5 = Tracks[[5]][[i]]) %>%
+      na.omit()
+    
+    assign(paste0(Element), Tracks_data)
+    Sample_ratios[[paste0(Element)]] <- Tracks_data
+    rm(Tracks_data)
+    }
+  assign(paste0("Sample_",Samples[j],"_",a,"_ratios"), Sample_ratios)
+  rm(Sample_ratios)
+  }
+}
+
+```
+
+# 1st half of code; reading element data of collated tracks, removing outliers, smoothing and plotting. 
+# Second half of code; rastering in various formats
+
+```{r intial read and plot of line scans}
+
+Ratios <- c("Li_Ca", "B_Ca", "Mg_Ca", "P_Ca", "S_Ca", "Mn_Ca", "Sr_Ca", "Ba_Ca", "U_Ca")
+
+plotdimensions <- par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,4,1,5),
+                     bty = "n", 
+                     bg = "transparent")
+
+# Separate folders for rasters, line plots and the dimension files. These can be adapted to whichever folder you decide. 
+Rasterpath <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_rasters/"
+Linepath <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_lineplots/"
+Dimensionspath <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/XY_dimensions_samples/"
+
+# Reset for loops (should happen anyway but just in case)
+a <- 1
+c <- 1
+b <- 1
+
+# Do you want to plot outputs or just run code?
+rasterplot = T
+lineplot = T
+pattern = T
+
+#Standard error output dataframe
+Standard_errors <- data.frame(Sample = character(),
+                              Section = character(),
+                              Element = character(),
+                              mean_value = numeric(),
+                              standard_error_av = numeric(),
+                              standard_error_av_2 = numeric(),
+                              coefficient_variation_av = numeric(),
+                              max_value = numeric(),
+                              min_value = numeric()
+                                 )
+#Reset plot dimensions
+dev.off()
+
+#START OF SUPERLOOP
+for(c in 1:length(Samples)) { # 4 samples
+  for(b in 1:3) { # 3 sections
+    
+    Sample_ratios <- get(paste0("Sample_",Samples[c],"_",b,"_ratios"))
+    testit(0.05) #pause for script to find file in time before reading
+    temp = list.files(path = Dimensionspath, pattern = paste0(Samples[c],"_",b,"_TJW.csv"))
+    testit(0.05) #pause for script to find file in time before reading
+    XY_dim<-read.csv(file = paste0(Dimensionspath,temp), header=TRUE)
+    
+    for(a in 1:length(Ratios)) { # 9 ratios
+      Sample_ratio <- Sample_ratios[[a]]
+      cat("Sample: ", Samples[c], b, Ratios[a], "\n")
+
+size <- length(Sample_ratio[,1])
+r.depth <- seq(1, size, by =1)
+
+#number of line scans used to make the image
+no.tracks<-length(Sample_ratio[1,])
+
+#degree of smoothing----
+SM<-5
+
+#level of rejection----
+if (Ratios[a] == "U_Ca" | Ratios[a] == "Ba_Ca" | Ratios[a] == "Mn_Ca") {
+  R<-2 
+} else { if(Ratios[a] == "P_Ca") {
+  R<-3
+} else { if (Ratios[a] == "Li_Ca" | Ratios[a] == "Sr_Ca") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
+
+#resolution factor ---- converts QQQ integration to MCICPMS integration of 2s 
+#degrades the Y resolution of the raster
+RS<-1 
+
+###make the grid ---- 
+#using the Y length and spot spacing
+
+dim.Y<-XY_dim$Y[2]-XY_dim$Y[1] #nb for landscape orientation this is the Y dimension
+
+x.grid.dim<-seq (1, size,  by=1)
+y.grid.dim<-seq (-1, -no.tracks, by=-1)
+x.grid<-matrix (NA, ncol=no.tracks, nrow=size/RS)
+y.grid<-matrix (NA, ncol=no.tracks, nrow=size/RS)
+
+for (i in 1:no.tracks){
+  x.grid[,i]<-seq (1, size/RS,  by=1)
+}
+for (i in 1:no.tracks){
+  y.grid[,i]<-rep (y.grid.dim[i], size/RS)
+}
+
+#turn the grid into dimensions ####
+spot.size<-50 #um
+#int.time <-1*RS #seconds per data point #0.472 s for TE on QQQ and 1.049s for d11B
+#scan.speed <- 10 #microns per second
+
+x.grid.um<-x.grid*(dim.Y/size)
+y.grid.um<-y.grid*spot.size
+
+#plot (x.grid.um, y.grid.um)
+
+#colours
+nc<-wes_palette(no.tracks, name="Darjeeling1", type="continuous")
+
+#Plots ####
+plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min (Sample_ratio, na.rm=TRUE),max(Sample_ratio, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Raw data", side = 3)
+#loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
+for (j in 1:no.tracks){
+  lines (r.depth, (Sample_ratio[,j]), col=nc[j])
+}
+
+#want to now do some rejection of "bad" data - we use a +/-3sd limit
+#determine the means and sd of each line
+m.L<-rep (NA, size)
+m.sd<-rep (NA, size)
+
+#loop again to determine the mean and sd of each line
+for (j in 1:no.tracks){
+  m.L[j]<-mean (Sample_ratio[,j], na.rm=TRUE)
+  m.sd[j]<-sd (Sample_ratio[,j], na.rm=TRUE)
+  }
+
+#plot of these 
+plot (m.L)
+plot (m.sd)
+
+#replace 3sd outliers with NA ####
+#make matrix to fill with original data and NA when original data outside of +/-3sd
+
+L.o<-matrix (NA, ncol=no.tracks, nrow=size)
+
+#bit of a more complex loop - where it uses an ifelse statment to evaluate each data point
+for (j in 1:no.tracks){
+  for (i in 1:size) {
+    L.o[i,j]<-ifelse (Sample_ratio[i,j] < m.L[j]+R*m.sd[j] & Sample_ratio[i,j] > m.L[j]-R*m.sd[j], Sample_ratio[i,j], NA)
+  }}
+
+#have a look at the data -rejections
+plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o, na.rm=TRUE),max(L.o, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("No outliers", side = 3)
+#number of colours
+#loop to plot each line
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o[,j]), col=nc[j])
+}
+
+#smoothing ####
+#degree of smoothing (choose a variable from 2 to n, 5 is probably ok)
+
+#make a couple of matrix's to be filled with smoothed data
+L.o.s<-matrix (NA, ncol=no.tracks, nrow=size)
+L.o.s.sd<-matrix (NA, ncol=no.tracks, nrow=size)
+
+
+for (j in 1:no.tracks){
+    L.o.s[,j]<-runmean (L.o[,j], SM, endrule = "NA")
+    L.o.s.sd[,j]<-runsd (L.o[,j], SM, endrule = "NA")
+    
+  }
+
+#take a look at the results of the smoothing
+plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s, na.rm = T),max(L.o.s, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Smoothed data", side = 3)
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s[,j]), col=nc[j])
+}
+# dev.copy(png, paste0(Smoothpath, "Sample_",Samples[c],"_",b,"_",Ratios[a], "smoothplot.png"))
+# dev.off()
+# assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_smoothplot"), smoothplot)
+# rm(smoothplot)
+
+# standard deviation over the track
+plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s.sd, na.rm=TRUE),max(L.o.s.sd, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Rolling st.dev", side = 3)
+#number of cols
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
+}
+
+#average se for each of the smoothed points####
+se <- mean (L.o.s.sd/(SM^0.5), na.rm=TRUE)*2
+
+Standard_errors <- Standard_errors %>% add_row(
+  Sample = paste0(Samples[c]),
+  Section = paste0(b),
+  Element = Ratios[a],
+  mean_value = mean((L.o.s[,j]), na.rm = T),
+  standard_error_av = se,
+  standard_error_av_2 = se*2,
+  coefficient_variation_av = ((mean(L.o.s.sd[,j], na.rm = T))/mean((L.o.s[,j]), na.rm = T))*100,
+  max_value = max((L.o.s[,j]), na.rm = T),
+  min_value = min((L.o.s[,j]), na.rm = T)
+)
+
+
+# collate the lineplots and export####
+if(lineplot == T) {
+dev.off()
+pdf(file = paste0(Linepath, "Sample_", Samples[c],"_",b," ", Ratios[a], " line plots.pdf"))
+
+par(oma = c(3,3,0,0), mar = c(3,3,2,2), 
+    layout(mat = matrix(c(1,3,2,4), 
+                  nrow= 2, 
+                  ncol = 2), 
+                  heights = c(1, 1), # Heights of the two rows
+                  widths = c(2, 2)), 
+    bty= "n")
+
+
+{plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min (Sample_ratio, na.rm=TRUE),max(Sample_ratio, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Raw data", side = 3)
+#loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
+for (j in 1:no.tracks){
+  lines (r.depth, (Sample_ratio[,j]), col=nc[j])
+}}
+{plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o, na.rm=TRUE),max(L.o, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("No outliers", side = 3)
+#number of colours
+#loop to plot each line
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o[,j]), col=nc[j])
+}}
+
+{plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s, na.rm=TRUE),max(L.o.s, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Smoothed data", side = 3)
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s[,j]), col=nc[j])
+}}
+
+{plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s.sd, na.rm=TRUE),max(L.o.s.sd, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+mtext("Rolling st.dev", side = 3)
+#number of cols
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
+}}
+mtext(text= "Distance",side=1,line=0,outer=TRUE)
+mtext(text=paste0(Ratios[a]),side=2,line=0,outer=TRUE)
+
+dev.off()
+}
+
+# pattern plots ####
+if (pattern == T) {
+  pattern_data <- as.data.frame(L.o.s)
+  if(Samples[c] == "23_6") { next } else {
+  pattern_data$distance.um <- -x.grid.um[,1]}
+  
+pattern_data <-  pattern_data %>%
+    rowwise() %>%
+    mutate(n = count(!is.na(c(V1,V2,V3,V4,V5))),
+           mean = mean(c(V1,V2,V3,V4,V5), na.rm = TRUE),
+           sd = sd(c(V1,V2,V3,V4,V5), na.rm = TRUE),
+           sd2 = sd*2,
+           se2 = sd2/sqrt(n),
+           max = max(c(V1,V2,V3,V4,V5), na.rm = TRUE),
+           min = min(c(V1,V2,V3,V4,V5), na.rm = TRUE))
+
+pattern_data[pattern_data$max == -Inf,]$max <- NA
+pattern_data[pattern_data$min == Inf,]$min <- NA
+
+assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_patterndata"), pattern_data)
+
+Variability_plot <- ggplot(data = pattern_data) +
+  geom_path(aes(distance.um, mean), lty =1, size = 0.8) +
+  geom_ribbon(aes(x = distance.um, y=mean, ymax=mean+se2, ymin=mean-se2), fill="#227988",alpha=.5) +
+  geom_path(aes(distance.um, max), lty =2, size = 0.5) +
+  geom_path(aes(distance.um, min), lty =2, size = 0.5) +
+  scale_y_continuous(name = paste0(Ratios[a]," (µmol/mol)")) +
+  scale_x_continuous(name = "Distance (µm)") +
+  geom_label(aes(x = max(distance.um/2), y = max(mean, na.rm = T)), label = paste0("Sample_",Samples[c],"_",b), size = 3) +
+  theme_classic()
+
+assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_variabilityplot"), Variability_plot)
+
+rm(pattern_data)
+rm(Variability_plot)
+
+}
+#now we have rejected the outliers and smoothed the data we can make a raster image (a map)
+# rasterise ####
+#sets the dimensions of the plot 
+
+#fill up a matrix with X and Y coordinates and smoothed and rejected laser ablation values
+s100<-matrix (c(x.grid.um, rev(y.grid.um), L.o.s), ncol=3, byrow=FALSE)
+#s100<-matrix (c(x.grid, rev(y.grid), L.o), ncol=3, byrow=FALSE) #not smoothed
+colnames(s100) <- c('X', 'Y', 'Z')
+e <- extent(s100[,1:2]) #tells the raster its X and Y that form the grid
+
+# important - nrow here is the number of laser lines going into the raster
+# for some reason n-1 makes the best images and makes the resolution correct (Gavin)
+# HOWEVER, with smaller number of tracks I (Tom) find that it works better having n and changing the aspect of the plots accordingly.  Otherwise the last track has weird overlapping data.  
+r <- raster(e, ncol=size, nrow=no.tracks)
+
+#using nrow < lenght of lines or ncol< number of lines will lower the resolution
+
+# you need to provide a function 'fun' for when there are multiple points per cell
+x <- rasterize(s100[, 1:2], r, s100[,3], fun=mean)
+
+assign(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " raster"), x)
+
+# if (rasterplot == T) {
+# #rough visualisation
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,4,1,5),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot(x, col=(rev(rainbow(30))), asp=1.25, axes = F)
+# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow"), side = 3)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,4,1,5),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot (x, col=viridis(20), asp=1.25, axes = F)
+# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " viridis"), side = 3)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis.png"))
+# dev.off()
+# 
+# 
+# contour (x)
+# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " contour"), side = 3)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " contour.png"))
+# dev.off()
+# 
+# #function that does some smoothing when making an image
+# plot.new()
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,4,1,5),
+#                      bty = "n",
+#                      bg = "transparent")
+# filledContour(x, col=rev(rainbow(19)), asp=1.25, frame.plot = F)
+# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow smooth"), side = 3)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " rainbowsmooth.png"))
+# dev.off()
+# 
+# #with Wesanderson pallet
+# col1<-wes_palette(25, name="Darjeeling1", type="continuous")
+# 
+# #par (mfrow=c(1,1)) #desktop plotting
+# #par(mar=c(1.5,1.5, 1.5, 1.5))
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# filledContour(x, col=(col1), cex.axis=0.8, asp=1.25, axes = T)
+# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeeling smooth"), side = 3)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeelingsmooth.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot (x, col=col1, asp=1.25, axes = F)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeeling.png"))
+# dev.off()
+# #with other palettes. 
+# col2<-viridis(28)
+# col3<-inferno(28)
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# filledContour(x, col=(col2), cex.axis=0.8, asp=1.25, axes = F)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridissmooth.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# filledContour(x, col=(col3), cex.axis=0.8, asp=1.25, axes = F)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " infernosmooth.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot(x, col=(col2), cex.axis=0.8, asp=1.25, axes = F)
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis2.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot(x,col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=paste0(Ratios[a], " (µmol/l)"), side=4, line=3,cex=0.8, las=0))
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " inferno3.png"))
+# dev.off()
+# 
+# par(mfrow=c(1,1),
+#                      mar=c(0.2,0.2,0.2,0.2),
+#                      oma=c(5,5,1,4),
+#                      bty = "n",
+#                      bg = "transparent")
+# plot(x,col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=paste0(Ratios[a], " (µmol/l)"), side=4, line=3,cex=0.8, las=0))
+# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis3.png"))
+# dev.off()
+# }
+    }
+  }
+}
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r rastering each element ratio seperately}
+
+for(a in 1:length(Ratios)) {
+Element_rasters <- grep(paste0("*",Ratios[a], " raster"),names(.GlobalEnv),value=TRUE)
+Element_raster_list <-do.call("list",mget(Element_rasters))
+assign(paste0(Ratios[a], "_raster_list"), Element_raster_list)
+}
+rm(Element_raster_list)
+
+Rasterpath_viridis <- "~/Library/CloudStorage/OneDrive-UniversityofSouthampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_rasters/Interpolated_Viridis/"
+b <- 1
+col2 <- viridis(24)
+plot.new()
+for (b in 1:length(Li_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Li_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,800,by = 5))
+mtext(paste0(names(Li_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Li_Ca_raster_list[b]), "_viridis_interpolated.png"))
+dev.off()
+frame()
+}
+
+col1 <- inferno(40)
+plot.new()
+for (b in 1:length(B_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(B_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" B/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(100,300,by = 5))
+mtext(paste0(names(B_Ca_raster_list[b]),"_viridis"), side = 3)
+# dev.copy(png, paste0(Rasterpath_viridis, names(B_Ca_raster_list[b]), "_inferno_interpolated.png"))
+# dev.off()
+frame()
+}
+
+col3 <-wes_palette(50, name="Darjeeling1", type="continuous")
+plot.new()
+for (b in 1:length(Ba_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Ba_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Ba/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,40,by = 1))
+mtext(paste0(names(Ba_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Ba_Ca_raster_list[b]), "_Dj_interpolated.png"))
+dev.off()
+frame()
+}
+
+# V high values, not saying much
+col2 <- viridis(40)
+plot.new()
+for (b in 1:length(Mg_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Mg_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Mg/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(60000,100000,by = 1000))
+mtext(paste0(names(Mg_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Mg_Ca_raster_list[b]), "_viridis_interpolated.png"))
+dev.off()
+frame()
+}
+
+# Poor, negative ratios. Peaks at coral boundary edge (opposite to Li and B)
+col1 <-inferno(30)
+plot.new()
+for (b in 1:length(Mn_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Mn_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Mn/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(-2,30,by = 1))
+mtext(paste0(names(Mn_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Mn_Ca_raster_list[b]), "_inferno_interpolated.png"))
+dev.off()
+frame()
+}
+
+col3 <-wes_palette(24, name="FantasticFox1", type="continuous")
+plot.new()
+for (b in 1:length(P_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(P_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" P/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(150,700,by = 25))
+mtext(paste0(names(P_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(P_Ca_raster_list[b]), "_FF_interpolated.png"))
+dev.off()
+frame()
+}
+
+col2 <-viridis(30)
+plot.new()
+for (b in 1:length(S_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(S_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" S/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(5000,10000,by = 200))
+mtext(paste0(names(S_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(S_Ca_raster_list[b]), "_viridis_interpolated.png"))
+dev.off()
+frame()
+}
+
+col1 <-inferno(20)
+plot.new()
+for (b in 1:length(Sr_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Sr_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Sr/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(2500,3500,by = 50))
+mtext(paste0(names(Sr_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Sr_Ca_raster_list[b]), "_inferno_interpolated.png"))
+dev.off()
+frame()
+}
+
+col3 <-wes_palette(20, name="FantasticFox1", type="continuous")
+plot.new()
+for (b in 1:length(U_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(U_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" U/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,0.1,by = 0.005))
+mtext(paste0(names(U_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(U_Ca_raster_list[b]), "_FF_interpolated.png"))
+dev.off()
+frame()
+}
+```
+
+```{r Intra & inter-individual reproducibility}
+
+#Varability plots####
+for(a in 1:length(Ratios)) {
+  for(c in 1:length(Samples)) {
+    patterns <- c(paste0(Samples[c],"_"), paste0(Ratios[a],"_variabilityplot"))
+Sample_Variability_plots <- grep(paste0(patterns, collapse = ".*"),names(.GlobalEnv),value=TRUE)
+Variability_plots_list <-do.call("list",mget(Sample_Variability_plots))
+Variability_plots_list <- Variability_plots_list[order(names(Variability_plots_list))]
+assign(paste0("Sample_",Samples[c]," ",Ratios[a], " Variability_plots_list"), Variability_plots_list)
+  }
+}
+rm(Variability_plots_list)
+
+## Sample 23-16 ####
+plot_a_list(`Sample_23_16 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1200), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,30), xlim = c(0,1200), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1200), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1200), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,80), xlim = c(0,1200), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,20), xlim = c(250,1200), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(0,1200), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 S_Ca Variability_plots_list`, 3,1, ylim = c(5000,9000), xlim = c(0,1200), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2500,3500), xlim = c(0,1200), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.08), xlim = c(0,1200), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(250,1200), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+
+## Sample 23-10 ####
+plot_a_list(`Sample_23_10 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1600), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,30), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1600), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1600), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,25), xlim = c(0,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,10), xlim = c(250,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(0,1600), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,11000), xlim = c(0,1600), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2800,4000), xlim = c(0,1600), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.1), xlim = c(0,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(250,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+
+## Sample 23-6 ####
+plot_a_list(`Sample_23_6 B_Ca Variability_plots_list`, 3,1, ylim = c(100,250), xlim = c(0,-3500), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(0,-3500), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,-3500), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,75), xlim = c(0,-3500), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,20), xlim = c(0,-3500), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(-250,-3500), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 P_Ca Variability_plots_list`, 3,1, ylim = c(150,600), xlim = c(0,-3500), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 S_Ca Variability_plots_list`, 3,1, ylim = c(6000,10000), xlim = c(0,-3500), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2900,3500), xlim = c(0,-3500), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(0,-3500), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(-250,-3500), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+
+## Sample 23-1 ####
+plot_a_list(`Sample_23_1 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1600), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,20), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1600), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1600), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,30), xlim = c(0,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,10), xlim = c(250,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 P_Ca Variability_plots_list`, 3,1, ylim = c(150,700), xlim = c(0,1600), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,10000), xlim = c(0,1600), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2900,3400), xlim = c(0,1600), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(0,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(250,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+
+# Element vs element plots####
+i <- 1
+Sample_element_patterns_list <- list()
+
+for(c in 1:length(Samples)) { # 4 samples
+   for(b in 1:3) { # 3 sections
+     cat("Sample: ", Samples[c], b, "\n")
+    patterns <- c(paste0(Samples[c],"_",b), "_patterndata")
+Section_element_patterns <- grep(paste0(patterns, collapse = ".*"),names(.GlobalEnv),value=TRUE)
+Section_element_patterns_list <-do.call("list",mget(Section_element_patterns))
+for(i in 1:length(Section_element_patterns_list)) {
+  Tracks_element_patterns_list <- list()
+  for(j in 1:5){
+  Tracks_element_patterns_list[[j]] <- Section_element_patterns_list[[i]][c(j,6)]
+  Data_name <- names(Section_element_patterns_list[i])
+  Element_name <- sub(paste0("Sample_",Samples[c],"_",b,"_"), "", Data_name)
+  Element_name <- sub("_patterndata", "", Element_name)
+  colnames(Tracks_element_patterns_list[[j]]) <- c(Element_name, "distance.um")
+  Tracks_element_patterns_list[[j]] <- Tracks_element_patterns_list[[j]] %>%
+    mutate(Track = j)
+  }
+  Section_element_patterns_list[[i]] <- Tracks_element_patterns_list %>%
+    reduce(full_join , by = c("distance.um", "Track", Element_name)) 
+}
+Section_element_pattern_data <- Section_element_patterns_list %>%
+  reduce(full_join, by = c("distance.um", "Track")) %>%
+  mutate(Internode = b)
+assign(paste0("Sample_",Samples[c]," ",b, " element_patterns_data"), Section_element_pattern_data)
+Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patterns_data")]] <- Section_element_pattern_data
+   }
+   
+   cat("Sample: ", Samples[c], "combining internodes...", "\n")
+   
+   Sample_element_patterns_data <- Sample_element_patterns_list %>%
+     reduce(full_join, by = c("distance.um", 
+                              "Mg_Ca","Mn_Ca", 
+                              "Ba_Ca","Sr_Ca", 
+                              "P_Ca","U_Ca",
+                              "B_Ca","Li_Ca",
+                              "S_Ca","Internode", 
+                              "Track"))
+
+   my_fn <- function(data, mapping, ...){
+      p <- ggplot(data = data, mapping = mapping) + 
+        geom_bin2d(bins = 30, alpha = 0.6) +
+  scale_fill_continuous(type = "viridis") +
+  theme_classic() 
+      p
+   }
+   
+   Sample_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(1,4:11), 
+           aes(color = as.factor(Internode)),
+           title = paste0("Sample ",Samples[c], " element ratios [by internode]  (µmol/mol)"),
+           legend = 1,
+           lower = list(continuous = my_fn), 
+           upper = list(continuous = "blank")) +
+           theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 6, angle = 45, vjust = 1, hjust=1)) +
+     labs(fill = "Internode")
+
+   assign(paste0("Sample_",Samples[c]," element ratios [by internode])"), Sample_element_patterns_ggpairs_internode)
+   rm(Sample_element_patterns_ggpairs_internode)
+   
+   my_fn <- function(data, mapping, ...){
+      p <- ggplot(data = data, mapping = mapping) + 
+        geom_bin2d(bins = 30, alpha = 1) +
+  scale_fill_continuous(type = "viridis") +
+  theme_classic()
+      p
+}
+   
+      Sample_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(1,4:11), 
+           title = paste0("Sample ",Samples[c], " element ratios  (µmol/mol)"),
+           lower = list(continuous = my_fn), 
+           upper = list(continuous = "blank")) +
+        theme(axis.text.x.bottom = element_text(size = 6, angle = 45, vjust = 1, hjust=1))
+  
+    assign(paste0("Sample_",Samples[c]," element ratios"), Sample_element_patterns_ggpairs)
+    rm(Sample_element_patterns_ggpairs)
+  }
+
+#Ratio vs ratio ####
+`Sample_23_16 element ratios` # missing legend for geom_bins
+ggsave(
+  "Sample_23_16 element ratios.tiff",
+  plot = last_plot(),
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
+`Sample_23_16 element ratios [by internode]` # missing legend for geom_bins
+ggsave(
+  "Sample_23_16 element ratios [by internode].tiff",
+  plot = last_plot(),
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+`Sample_23_10 element ratios` # missing legend for geom_bins
+`Sample_23_10 element ratios [by internode]` # missing legend for geom_bins
+`Sample_23_6 element ratios` # missing legend for geom_bins
+`Sample_23_6 element ratios [by internode]` # missing legend for geom_bins
+`Sample_23_1 element ratios` # missing legend for geom_bins
+`Sample_23_1 element ratios [by internode]` # missing legend for geom_bins
+
+View(Sample_element_patterns_list)
+
+ggplot(data = Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]]) +
+  geom_path(aes(x = distance.um, y = mean(Li_Ca, na.rm = T)), col = "grey") +
+  geom_path(aes(x = distance.um, y = mean(Mg_Ca, na.rm = T)/1000), col = "orange") # does not seem right??
+
+
+```
+
