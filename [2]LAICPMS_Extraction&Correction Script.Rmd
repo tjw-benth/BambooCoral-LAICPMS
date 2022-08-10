@@ -2,9 +2,9 @@
 title: "LAICPMS_Extraction&Correction Script"
 author: "Thomas J Williams"
 date: "16/05/2022"
-version: "2.01"
+version: "2.02"
 edited by: "Thomas J Williams"
-edit date: "03/08/2022"
+edit date: "10/08/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -357,6 +357,8 @@ assign(paste0(names(Runs_612[j]), "_Calculations"), Data_averages_V2)
 Calculations_612[[paste0(names(Runs_612[j]), "_Calculations")]] <- Data_averages_V2
 
 }
+
+if(SignalPlots == T) {
 plot_a_list(Elementdata_612, 7,2)
 
 ggsave(
@@ -373,6 +375,7 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_612, 7,2, ylim = c(0,.6), xlim = c(0,200))
+}
 
 # JCP standards code ####
 Analysis_JCP <- list()
@@ -558,7 +561,7 @@ Calculations_JCP[[paste0(names(Runs_JCP[j]), "_Calculations")]] <- Data_averages
 
 }
 
-
+if(SignalPlots == T) {
 plot_a_list(Elementdata_JCP, 7,2)
 
 ggsave(
@@ -578,6 +581,7 @@ plot_a_list(Elementdata_612, 7,2)
 
 
 plot_a_list(Li_Ca_ratios_JCP, 7,2, ylim = c(0,.01), xlim = c(0,200))
+}
 
 # DSC standards code ####
 Analysis_DSC <- list()
@@ -764,6 +768,7 @@ Calculations_DSC[[paste0(names(Runs_DSC[j]), "_Calculations")]] <- Data_averages
 
 }
 
+if(SignalPlots == T) {
 plot_a_list(Elementdata_DSC, 6,2)
 
 ggsave(
@@ -780,6 +785,7 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_DSC, 7,2, ylim = c(0,.005), xlim = c(0,200))
+}
 
 # Samples code - first sample (23-16_1) ####
 Analysis_Sample_23_16_1 <- list()
@@ -965,7 +971,7 @@ assign(paste0(names(Runs_Sample_23_16_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T) {
 plot_a_list(Elementdata_Sample_23_16_1, 2,3)
 
 ggsave(
@@ -980,7 +986,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-16_2) ####
 Analysis_Sample_23_16_2 <- list()
 Calculations_Sample_23_16_2 <- list()
@@ -1165,7 +1171,7 @@ assign(paste0(names(Runs_Sample_23_16_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_16_2, 2,3)
 
 ggsave(
@@ -1180,7 +1186,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-16_3) ####
 Analysis_Sample_23_16_3 <- list()
 Calculations_Sample_23_16_3 <- list()
@@ -1365,7 +1371,7 @@ assign(paste0(names(Runs_Sample_23_16_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_16_3, 2,3)
 
 ggsave(
@@ -1382,7 +1388,7 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_Sample_23_16_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
-
+}
 # Samples code - first sample (23-1_1) ####
 Analysis_Sample_23_1_1 <- list()
 Calculations_Sample_23_1_1 <- list()
@@ -1567,7 +1573,7 @@ assign(paste0(names(Runs_Sample_23_1_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_1_1, 2,3)
 
 ggsave(
@@ -1582,7 +1588,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-1_2) ####
 Analysis_Sample_23_1_2 <- list()
 Calculations_Sample_23_1_2 <- list()
@@ -1767,7 +1773,7 @@ assign(paste0(names(Runs_Sample_23_1_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_1_2, 2,3)
 
 ggsave(
@@ -1782,7 +1788,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-1_3) ####
 Analysis_Sample_23_1_3 <- list()
 Calculations_Sample_23_1_3 <- list()
@@ -1967,7 +1973,7 @@ assign(paste0(names(Runs_Sample_23_1_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_1_3, 2,3)
 
 ggsave(
@@ -1982,8 +1988,8 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
+}
 
-plot_a_list(Li_Ca_ratios_Sample_23_1_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
 
 # Samples code - first sample (23-10_1) ####
 Analysis_Sample_23_10_1 <- list()
@@ -2170,8 +2176,7 @@ Calculations_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Calculation
 
 }
 
-plot_a_list(Li_Ca_ratios_Sample_23_10_1, 2,3, ylim = c(0,0.05), xlim = c(0,300))
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_10_1, 2,3)
 
 ggsave(
@@ -2186,6 +2191,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
+}
 
 # Samples code - first sample (23-10_2) ####
 Analysis_Sample_23_10_2 <- list()
@@ -2371,7 +2377,7 @@ assign(paste0(names(Runs_Sample_23_10_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_10_2, 2,3)
 
 ggsave(
@@ -2386,7 +2392,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-10_3) ####
 Analysis_Sample_23_10_3 <- list()
 Calculations_Sample_23_10_3 <- list()
@@ -2572,7 +2578,7 @@ Calculations_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Calculation
 
 }
 
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_10_3, 2,3)
 
 ggsave(
@@ -2587,8 +2593,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
-plot_a_list(Li_Ca_ratios_Sample_23_10_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
+}
 
 # Samples code - first sample (23-6_1) ####
 Analysis_Sample_23_6_1 <- list()
@@ -2774,7 +2779,7 @@ assign(paste0(names(Runs_Sample_23_6_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_6_1, 2,3)
 
 ggsave(
@@ -2789,7 +2794,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-6_2) ####
 Analysis_Sample_23_6_2 <- list()
 Calculations_Sample_23_6_2 <- list()
@@ -2975,6 +2980,7 @@ Calculations_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Calculations"
 
 }
 
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_6_2, 2,3)
 
 ggsave(
@@ -2989,7 +2995,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
+}
 # Samples code - first sample (23-6_3) ####
 Analysis_Sample_23_6_3 <- list()
 Calculations_Sample_23_6_3 <- list()
@@ -3175,6 +3181,7 @@ Calculations_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Calculations"
 
 }
 
+if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_6_3, 2,3)
 
 ggsave(
@@ -3189,8 +3196,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-
-plot_a_list(Li_Ca_ratios_Sample_23_6_3, 5,1, ylim = c(0,.005), xlim = c(0,400))
+}
 
 ```
 
@@ -3493,10 +3499,12 @@ JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_1")]] <- JCP_Corrected_Sa
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_10")]] <- JCP_Corrected_Sample_23_10
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_6")]] <- JCP_Corrected_Sample_23_6
 
+JCP_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/JCP_Corrected/"
+
 for (i in 1:length(JCP_Corrected_Samples)) {
   for (j in 1:length(JCP_Corrected_Samples[[i]])) {
     for (x in 1:length(JCP_Corrected_Samples[[i]][[j]])) {
-      filename = paste(names(JCP_Corrected_Samples[[i]][[j]])[[x]], ".csv")
+      filename = paste(JCP_Corrected_path, names(JCP_Corrected_Samples[[i]][[j]])[[x]], ".csv")
       write.csv(JCP_Corrected_Samples[[i]][[j]][[x]], filename)
     }
   }
@@ -3971,10 +3979,12 @@ NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_6")]] <- NIST612_
 i <-1
 j <- 1
 x <- 1
+
+NIST612_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected/"
 for (i in 1:length(NIST612_Corrected_Samples)) {
   for (j in 1:length(NIST612_Corrected_Samples[[i]])) {
     for (x in 1:length(NIST612_Corrected_Samples[[i]][[j]])) {
-      filename = paste(names(NIST612_Corrected_Samples[[i]][[j]])[[x]], ".csv")
+      filename = paste(NIST612_Corrected_path, names(NIST612_Corrected_Samples[[i]][[j]])[[x]], ".csv")
       write.csv(NIST612_Corrected_Samples[[i]][[j]][[x]], filename)
     }
   }
