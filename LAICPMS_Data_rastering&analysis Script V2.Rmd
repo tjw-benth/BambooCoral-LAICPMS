@@ -2,9 +2,9 @@
 title: "LAICPMS_Data_rastering&analysis Script"
 author: "Thomas J Williams"
 date: "26/05/2022"
-version: "2.02"
+version: "2.03"
 edited by: "Thomas J Williams"
-edit date: "10/08/2022"
+edit date: "19/08/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -725,7 +725,7 @@ plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), x
 
 ## Sample 23-10 ####
 plot_a_list(`Sample_23_10 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1600), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,30), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
 plot_a_list(`Sample_23_10 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1600), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
 plot_a_list(`Sample_23_10 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1600), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
 plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,25), xlim = c(0,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
@@ -819,7 +819,7 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
            legend = 1,
            lower = list(continuous = my_fn), 
            diag = list(continuous = "densityDiag", alpha = 0.6),
-           upper = list(continuous = wrap("cor", size = 2.5))) +
+           upper = list(continuous = wrap("cor", method = "spearman", size = 2.5))) +
            scale_color_manual(values = c("red", "gold",  "blue")) +
            theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 6, angle = 45, vjust = 1, hjust=1)) +
      labs(fill = "Internode", color = "Internode")
@@ -908,7 +908,7 @@ ggsave(
 `Sample_23_10 element ratios [by internode]` # missing legend for geom_bins
 
 ggsave(
-  "Sample_23_10 element ratios [by internode].tiff",
+  "Sample_23_10 element ratios [by internode] _ Pearson r.tiff",
   plot = last_plot(),
   path = Ratios_folder_path,
   scale = 1,
@@ -975,14 +975,53 @@ View(Sample_element_patterns_list)
 
 Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] <- Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>% mutate_all(~ifelse(is.nan(.), NA, .))
 
-ggplot(data = Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]]) +
+Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
+  group_by(distance.um) %>% # calculate across all tracks
+  summarise(Li_Ca = Li_Ca,
+            Mg_Ca = Mg_Ca/1000) %>%
+ggplot() +
   geom_path(aes(x = distance.um, y = Li_Ca), col = "grey") +
-  geom_path(aes(x = distance.um, y = Mg_Ca/1000), col = "orange") +
-  geom_path(aes(x = distance.um, y = (Li_Ca/Mg_Ca/1000)), col = "red")# does not seem right??
+  geom_path(aes(x = distance.um, y = Mg_Ca), col = "orange") +
+  geom_label(aes(y = 45, x = 500, label = "Li/Ca (µmol/mol)"),col = "grey") +
+  geom_label(aes(y = 65, x = 500, label = "Mg_Ca (mmol/mol)"), col = "orange") +
+  scale_y_continuous(breaks = c(10,20,30,40,50,60,70,80,90,100)) +
+  labs(y = "Element concentration", x = "Distance from coral edge (µm)")
 
-ggplot(data = Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]]) +
-  geom_path(aes(x = distance.um, y = (Li_Ca/(Mg_Ca/1000))), col = "red")# does not seem right??
+Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
+  group_by(distance.um) %>% # calculate across all tracks
+  summarise(Li_Ca = Li_Ca,
+            Mg_Ca = Mg_Ca,
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/5.38))/-0.048),
+            Mg_Ca_proxy = (-23.9 + (0.34*(Mg_Ca/1000)))) %>%
+  ggplot() +
+  geom_path(aes(x = distance.um, y = Li_Mg_proxy), col = "red") +# does not seem right?? Look through Cuny-Cuirriec et al., 2019 Chem. Geol.
+  geom_path(aes(x = distance.um, y = Mg_Ca_proxy), col = "blue") + # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+  labs(y = "Reconstructed temperature", x = "Distance from coral edge (µm)") +
+  geom_label(aes(y = 40, x = 300, label = "Li/Mg proxy - Montagna et al., 2014"),col = "red") +
+  geom_label(aes(y = 20, x = 300, label = "Mg/Ca proxy - Thresher et al., 2016"), col = "blue")
 
+# Li_Ca and Mg_Ca are comparable to what DSC is expected to be at (see DSC 612 corrected summary table) - yet they seem too high for what we are seeing in other cold-water corals? (Montagna et al., 2014) 
+# Are we seeing seawater manipulation in the Li_Ca department because they are deep-water?
+# Calcite contribution on the Li/Mg proxy - these corals have a very high calcite concentration, so may need to be corrected
+
+# (log(Li_Mg/5.38))/-0.048
+formula = y ~ s(x, bs = "cs")
+Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
+  group_by(distance.um) %>% # calculate across all tracks
+  summarise(Li_Ca = Li_Ca,
+            Mg_Ca = Mg_Ca,
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/5.38))/-0.048),
+            Mg_Ca_proxy = (-23.9 + (0.34*(Mg_Ca/1000)))) %>%
+  ggplot() +
+  geom_path(aes(x = distance.um, y = Mg_Ca_proxy), col = "blue") + # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+  geom_label(aes(y = 20, x = 300, label = "Mg/Ca proxy - Thresher et al., 2016"), col = "blue") +
+  geom_smooth(aes(x = distance.um, y = Mg_Ca_proxy), col = "black", linetype = 2) +
+  # ggpmisc::stat_poly_eq(aes(label =  paste(after_stat(eq.label),
+  #                                 after_stat(adj.rr.label), sep = "*\", \"*")), formula = formula, method = "gam") +
+  labs(y = "Reconstructed temperature") +
+  theme_classic()
 
 ```
 
