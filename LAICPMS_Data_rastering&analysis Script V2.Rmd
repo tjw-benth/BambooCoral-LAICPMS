@@ -2,9 +2,9 @@
 title: "LAICPMS_Data_rastering&analysis Script"
 author: "Thomas J Williams"
 date: "26/05/2022"
-version: "2.03"
+version: "2.04"
 edited by: "Thomas J Williams"
-edit date: "19/08/2022"
+edit date: "31/08/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -79,6 +79,7 @@ j <-1
 a<-1
 i <- 70
 
+# for all ratios ####
 for(j in 1:length(Samples)) { # 4 samples
   for(a in 1:3) { # 3 sections
     Sample_ratios <- list()
@@ -113,6 +114,42 @@ for(j in 1:length(Samples)) { # 4 samples
   }
 }
 # View(Sample_23_16_3_ratios)
+
+# for Calcium counts ONLY ####
+for(j in 1:length(Samples)) { # 4 samples
+  for(a in 1:3) { # 3 sections
+    Ca43_counts <- list()
+    Tracks <- get(paste0("NIST612_Corrected_Sample_",Samples[j],"_",a))
+    Element <- colnames(Tracks[[1]])[[47]] #Ca45_analysis_blankcorrected (Ca counts per second)
+    cat("Sample: ", Samples[j], a, Element, "\n")
+    Track1_data <- data.frame(Row = seq(1,nrow(Tracks[[1]]), by = 1),
+                              Track1 = Tracks[[1]][[47]])
+    Track2_data <- data.frame(Row = seq(1,nrow(Tracks[[2]]), by = 1),
+                              Track2 = Tracks[[2]][[47]])
+    Track3_data <- data.frame(Row = seq(1,nrow(Tracks[[3]]), by = 1),
+                              Track3 = Tracks[[3]][[47]])
+    Track4_data <- data.frame(Row = seq(1,nrow(Tracks[[4]]), by = 1),
+                              Track4 = Tracks[[4]][[47]])
+    Track5_data <- data.frame(Row = seq(1,nrow(Tracks[[5]]), by = 1),
+                              Track5 = Tracks[[5]][[47]])
+    Tracks_data <- full_join(full_join(full_join(full_join(Track1_data,
+                                                           Track2_data),
+                                                 Track3_data),
+                                       Track4_data), 
+                             Track5_data) 
+    Tracks_data <- Tracks_data[-c(1:60),] # remove first 60 rows (30 second blank at 0.5s)
+    Tracks_data <- head(Tracks_data, -90) # remove last 90 rows (45 second blank at 0.5s)
+    Tracks_data$Row <- NULL
+    assign(paste0(Element), Tracks_data)
+    Ca43_counts[[paste0(Element)]] <- Tracks_data
+    rm(Tracks_data)
+  assign(paste0("Sample_",Samples[j],"_",a,"_Ca43_counts"), Ca43_counts)
+  rm(Ca43_counts)
+  }
+}
+
+# View(Sample_23_16_1_Ca43_counts)
+
 ```
 
 # 1st half of code; reading element data of collated tracks, removing outliers, smoothing and plotting. 
@@ -157,6 +194,7 @@ Standard_errors <- data.frame(Sample = character(),
 #Reset plot dimensions
 dev.off()
 
+# for all ratios ####
 #START OF SUPERLOOP
 b <- 1
 for(c in 1:length(Samples)) { # 4 samples
@@ -178,10 +216,10 @@ r.depth <- seq(1, size, by =1)
 #number of line scans used to make the image
 no.tracks<-length(Sample_ratio[1,])
 
-#degree of smoothing----
+##degree of smoothing----
 SM<-5
 
-#level of rejection----
+##level of rejection----
 if (Ratios[a] == "U_Ca" | Ratios[a] == "Ba_Ca" | Ratios[a] == "Mn_Ca") {
   R<-2 
 } else { if(Ratios[a] == "P_Ca") {
@@ -215,7 +253,7 @@ for (i in 1:no.tracks){
   y.grid[,i]<-rep (y.grid.dim[i], size/RS)
 }
 
-#turn the grid into dimensions ####
+##turn the grid into dimensions ####
 spot.size<-50 #um
 #int.time <-1*RS #seconds per data point #0.472 s for TE on QQQ and 1.049s for d11B
 #scan.speed <- 10 #microns per second
@@ -228,7 +266,7 @@ y.grid.um<-y.grid*spot.size
 #colours
 nc<-wes_palette(no.tracks, name="Darjeeling1", type="continuous")
 
-#Plots ####
+##Plots ####
 plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min (Sample_ratio, na.rm=TRUE),max(Sample_ratio, na.rm=TRUE)), ylab = paste0(Ratios[a]))
 mtext("Raw data", side = 3)
 #loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
@@ -271,7 +309,7 @@ for (j in 1:no.tracks){
   lines (r.depth, (L.o[,j]), col=nc[j])
 }
 
-#smoothing ####
+##smoothing ####
 #degree of smoothing (choose a variable from 2 to n, 5 is probably ok)
 
 #make a couple of matrix's to be filled with smoothed data
@@ -304,7 +342,7 @@ for (j in 1:no.tracks){
   lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
 }
 
-#average se for each of the smoothed points####
+##average se for each of the smoothed points####
 se <- mean (L.o.s.sd/(SM^0.5), na.rm=TRUE)*2
 
 Standard_errors <- Standard_errors %>% add_row(
@@ -320,7 +358,7 @@ Standard_errors <- Standard_errors %>% add_row(
 )
 
 
-# collate the lineplots and export####
+## collate the lineplots and export####
 if(lineplot == T) {
 dev.off()
 pdf(file = paste0(Linepath, "Sample_", Samples[c],"_",b," ", Ratios[a], " line plots.pdf"))
@@ -366,7 +404,7 @@ mtext(text=paste0(Ratios[a]),side=2,line=0,outer=TRUE)
 dev.off()
 }
 
-# pattern plots ####
+## pattern plots ####
 if (pattern == T) {
   pattern_data <- as.data.frame(L.o.s)
   if(Samples[c] == "23_6") { next } else {
@@ -404,7 +442,7 @@ rm(Variability_plot)
 
 }
 #now we have rejected the outliers and smoothed the data we can make a raster image (a map)
-# rasterise ####
+## rasterise ####
 #sets the dimensions of the plot 
 
 #fill up a matrix with X and Y coordinates and smoothed and rejected laser ablation values
@@ -542,6 +580,167 @@ assign(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " raster"), x)
   }
 }
 
+
+# For Ca43 ONLY ####
+
+for(c in 1:length(Samples)) { # 4 samples
+  for(b in 1:3) { # 3 sections
+    
+    Ca43_counts <- get(paste0("Sample_",Samples[c],"_",b,"_Ca43_counts"))
+    testit(0.05) #pause for script to find file in time before reading
+    temp = list.files(path = Dimensionspath, pattern = paste0(Samples[c],"_",b,"_TJW.csv"))
+    testit(0.05) #pause for script to find file in time before reading
+    XY_dim<-read.csv(file = paste0(Dimensionspath,temp), header=TRUE)
+    
+      Ca43_count <- Ca43_counts[[1]]
+      cat("Sample: ", Samples[c], b, "Ca43_counts", "\n")
+
+size <- length(Ca43_count[,1])
+r.depth <- seq(1, size, by =1)
+
+#number of line scans used to make the image
+no.tracks<-length(Ca43_count[1,])
+
+#degree of smoothing----
+SM<-5
+
+#level of rejection----
+R<-4
+ 
+#resolution factor ---- converts QQQ integration to MCICPMS integration of 2s 
+#degrades the Y resolution of the raster
+RS<-1 
+
+###make the grid ---- 
+#using the Y length and spot spacing
+
+dim.Y<-XY_dim$Y[2]-XY_dim$Y[1] #nb for landscape orientation this is the Y dimension
+
+x.grid.dim<-seq (1, size,  by=1)
+y.grid.dim<-seq (-1, -no.tracks, by=-1)
+x.grid<-matrix (NA, ncol=no.tracks, nrow=size/RS)
+y.grid<-matrix (NA, ncol=no.tracks, nrow=size/RS)
+
+for (i in 1:no.tracks){
+  x.grid[,i]<-seq (1, size/RS,  by=1)
+}
+for (i in 1:no.tracks){
+  y.grid[,i]<-rep (y.grid.dim[i], size/RS)
+}
+
+#turn the grid into dimensions ####
+spot.size<-50 #um
+#int.time <-1*RS #seconds per data point #0.472 s for TE on QQQ and 1.049s for d11B
+#scan.speed <- 10 #microns per second
+
+x.grid.um<-x.grid*(dim.Y/size)
+y.grid.um<-y.grid*spot.size
+
+#plot (x.grid.um, y.grid.um)
+
+#colours
+nc<-wes_palette(no.tracks, name="Darjeeling1", type="continuous")
+
+#Plots ####
+plot (r.depth, Ca43_count[,1], type="n", ylim=c(min (Ca43_count, na.rm=TRUE),max(Ca43_count, na.rm=TRUE)), ylab = paste0("Ca43 (counts per second)"))
+mtext("Raw data", side = 3)
+#loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
+for (j in 1:no.tracks){
+  lines (r.depth, (Ca43_count[,j]), col=nc[j])
+}
+
+#want to now do some rejection of "bad" data - we use a +/-3sd limit
+#determine the means and sd of each line
+m.L<-rep (NA, size)
+m.sd<-rep (NA, size)
+
+#loop again to determine the mean and sd of each line
+for (j in 1:no.tracks){
+  m.L[j]<-mean (Ca43_count[,j], na.rm=TRUE)
+  m.sd[j]<-sd (Ca43_count[,j], na.rm=TRUE)
+  }
+
+#plot of these 
+plot (m.L)
+plot (m.sd)
+
+#replace 3sd outliers with NA ####
+#make matrix to fill with original data and NA when original data outside of +/-3sd
+
+L.o<-matrix (NA, ncol=no.tracks, nrow=size)
+
+#bit of a more complex loop - where it uses an ifelse statment to evaluate each data point
+for (j in 1:no.tracks){
+  for (i in 1:size) {
+    L.o[i,j]<-ifelse (Ca43_count[i,j] < m.L[j]+R*m.sd[j] & Ca43_count[i,j] > m.L[j]-R*m.sd[j], Ca43_count[i,j], NA)
+  }}
+
+#have a look at the data -rejections
+plot (r.depth, Ca43_count[,1], type="n", ylim=c(min(L.o, na.rm=TRUE),max(L.o, na.rm=TRUE)), ylab = paste0("Ca43 (counts per second)"))
+mtext("No outliers", side = 3)
+#number of colours
+#loop to plot each line
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o[,j]), col=nc[j])
+}
+
+#smoothing ####
+#degree of smoothing (choose a variable from 2 to n, 5 is probably ok)
+
+#make a couple of matrix's to be filled with smoothed data
+L.o.s<-matrix (NA, ncol=no.tracks, nrow=size)
+L.o.s.sd<-matrix (NA, ncol=no.tracks, nrow=size)
+
+
+for (j in 1:no.tracks){
+    L.o.s[,j]<-runmean (L.o[,j], SM, endrule = "NA")
+    L.o.s.sd[,j]<-runsd (L.o[,j], SM, endrule = "NA")
+    
+  }
+
+#take a look at the results of the smoothing
+plot (r.depth, Ca43_count[,1], type="n", ylim=c(min(L.o.s, na.rm = T),max(L.o.s, na.rm=TRUE)), ylab = paste0("Ca43 (counts per second)"))
+mtext("Smoothed data", side = 3)
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s[,j]), col=nc[j])
+}
+
+
+# standard deviation over the track
+plot (r.depth, Ca43_count[,1], type="n", ylim=c(min(L.o.s.sd, na.rm=TRUE),max(L.o.s.sd, na.rm=TRUE)), ylab = paste0("Ca43 (counts per second)"))
+mtext("Rolling st.dev", side = 3)
+#number of cols
+for (j in 1:no.tracks){
+  lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
+}
+
+#average se for each of the smoothed points####
+se <- mean (L.o.s.sd/(SM^0.5), na.rm=TRUE)*2
+
+
+#now we have rejected the outliers and smoothed the data we can make a raster image (a map)
+## rasterise ####
+#sets the dimensions of the plot 
+
+#fill up a matrix with X and Y coordinates and smoothed and rejected laser ablation values
+s100<-matrix (c(x.grid.um, rev(y.grid.um), L.o.s), ncol=3, byrow=FALSE)
+#s100<-matrix (c(x.grid, rev(y.grid), L.o), ncol=3, byrow=FALSE) #not smoothed
+colnames(s100) <- c('X', 'Y', 'Z')
+e <- extent(s100[,1:2]) #tells the raster its X and Y that form the grid
+
+# important - nrow here is the number of laser lines going into the raster
+# for some reason n-1 makes the best images and makes the resolution correct (Gavin)
+# HOWEVER, with smaller number of tracks I (Tom) find that it works better having n and changing the aspect of the plots accordingly.  Otherwise the last track has weird overlapping data.  
+r <- raster(e, ncol=size, nrow=no.tracks)
+
+#using nrow < lenght of lines or ncol< number of lines will lower the resolution
+
+# you need to provide a function 'fun' for when there are multiple points per cell
+x <- rasterize(s100[, 1:2], r, s100[,3], fun=mean)
+
+assign(paste0("Sample_", Samples[c],"_",b, "_Ca43_counts_raster"), x)
+    }
+  }
 ```
 
 
@@ -694,6 +893,27 @@ dev.copy(png, paste0(Rasterpath_viridis, names(U_Ca_raster_list[b]), "_FF_interp
 dev.off()
 frame()
 }
+
+# for Ca43 ONLY ####
+
+
+Ca43_rasters <- grep(paste0("*","_Ca43_counts_raster"),names(.GlobalEnv),value=TRUE)
+Ca43_raster_list <-do.call("list",mget(Ca43_rasters))
+
+col1 <-inferno(25)
+plot.new()
+for (b in 1:length(Ca43_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Ca43_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Ca (counts per second)", side=4, line=4.5,cex=0.8, las=0), breaks = seq(1000000,9000000,by = 320000))
+mtext(paste0(names(Ca43_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Ca43_raster_list[b]), "_inferno_interpolated.png"))
+dev.off()
+frame()
+}
 ```
 
 ```{r Intra & inter-individual reproducibility}
@@ -796,15 +1016,18 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
    
    cat("Sample: ", Samples[c], "combining internodes...", "\n")
    
-   Sample_element_patterns_data <- Sample_element_patterns_list %>%
+   Sample_element_patterns_data <- Sample_element_patterns_list[grep(paste0(Samples[c]), names(Sample_element_patterns_list))] %>%
      reduce(full_join, by = c("distance.um", 
                               "Mg_Ca","Mn_Ca", 
                               "Ba_Ca","Sr_Ca", 
                               "P_Ca","U_Ca",
                               "B_Ca","Li_Ca",
                               "S_Ca","Internode", 
-                              "Track"))
-
+                              "Track")) 
+   
+      Sample_element_patterns_data <- Sample_element_patterns_data[, c("distance.um","Internode","Track","Li_Ca","B_Ca","Mg_Ca","P_Ca","S_Ca","Mn_Ca","Sr_Ca","Ba_Ca","U_Ca")]
+      
+      
    my_fn <- function(data, mapping, ...){
       p <- ggplot(data = data, mapping = mapping) + 
         geom_bin_2d(bins = 30, alpha = 0.5, show.legend = T, na.rm = T) +
@@ -813,7 +1036,7 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
       p
    }
    
-   Sample_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(1,4:11), 
+   Sample_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(4:12), 
            aes(color = as.factor(Internode), alpha = 0.6),
            title = paste0("Sample ",Samples[c], " element ratios [by internode]  (µmol/mol)"),
            legend = 1,
@@ -855,7 +1078,7 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
       p
 }
    
-      Sample_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(1,4:11), 
+      Sample_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(4:12), 
            title = paste0("Sample ",Samples[c], " element ratios  (µmol/mol)"),
            lower = list(continuous = my_fn), 
            upper = list(continuous = "blank")) +
@@ -870,7 +1093,7 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
 
 ggsave(
   "Sample_23_16 element ratios.tiff",
-  plot = last_plot(),
+  plot = `Sample_23_16 element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -883,7 +1106,7 @@ ggsave(
 
 ggsave(
   "Sample_23_16 element ratios [by internode].tiff",
-  plot = last_plot(),
+  plot = `Sample_23_16 element ratios [by internode]`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -896,7 +1119,7 @@ ggsave(
 
 ggsave(
   "Sample_23_10 element ratios.tiff",
-  plot = last_plot(),
+  plot = `Sample_23_10 element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -909,7 +1132,7 @@ ggsave(
 
 ggsave(
   "Sample_23_10 element ratios [by internode] _ Pearson r.tiff",
-  plot = last_plot(),
+  plot = `Sample_23_10 element ratios [by internode]`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -922,7 +1145,7 @@ ggsave(
 
 ggsave(
   "Sample_23_6 element ratios.tiff",
-  plot = last_plot(),
+  plot = `Sample_23_6 element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -935,7 +1158,7 @@ ggsave(
 
 ggsave(
   "Sample_23_6 element ratios [by internode].tiff",
-  plot = last_plot(),
+  plot = `Sample_23_6 element ratios [by internode]`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -948,7 +1171,7 @@ ggsave(
 
 ggsave(
   "Sample_23_1 element ratios.tiff",
-  plot = last_plot(),
+  plot = `Sample_23_1 element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -961,7 +1184,7 @@ ggsave(
 
 ggsave(
   "Sample_23_1 element ratios [by internode].tiff",
-  plot = last_plot(),
+  plot = `Sample_23_1 element ratios [by internode]`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
