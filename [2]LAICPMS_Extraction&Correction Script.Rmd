@@ -2,9 +2,9 @@
 title: "LAICPMS_Extraction&Correction Script"
 author: "Thomas J Williams"
 date: "16/05/2022"
-version: "2.02"
+version: "2.10"
 edited by: "Thomas J Williams"
-edit date: "10/08/2022"
+edit date: "29/06/2022"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -42,17 +42,16 @@ if (i %in% rownames(installed.packages()) == FALSE)
   }
 }
 
-# plotting multiple plots in a list
-plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim, ylab, xlab) {
-  if(missing(ylim) | missing(xlim) | missing(ylab) | missing(xlab)) {
+plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim) {
+  if(missing(ylim) | missing(xlim)) {
     patchwork::wrap_plots(master_list_with_plots, 
-                        nrow = no_of_rows, ncol = no_of_cols)
+                        nrow = no_of_rows, ncol = no_of_cols,
+                        guides = "collect")
   } else {
       patchwork::wrap_plots(master_list_with_plots, 
-                        nrow = no_of_rows, ncol = no_of_cols) &
-  ggplot2::lims(y = ylim, x = xlim) &
-      ggplot2::xlab(label = xlab) &
-      ggplot2::ylab(label = ylab)
+                        nrow = no_of_rows, ncol = no_of_cols,
+                        guides = "collect") &
+  ggplot2::lims(y = ylim, x = xlim)
   }
 }
 ```
@@ -127,7 +126,7 @@ ICPMS_directories_tidy <- ICPMS_directories %>%
 ICPMS_directories_tidy <- ICPMS_directories_tidy %>%
   mutate(sampleID = paste("A", 1:nrow(ICPMS_directories_tidy), sep = ""), .before = acq_date_time)
 
-# now rename the unneded dataframes in the large list based off the directory file sample IDs
+# now rename the un-needed dataframes in the large list based off the directory file sample IDs
 ICPMS_csvfiles_tidy <- ICPMS_csvfiles
 for (x in 1:length(ICPMS_csvfiles)) {
   if (length(ICPMS_directories_tidy[which(ICPMS_csvfiles_tidy[[x]]$V1[1] == ICPMS_directories_tidy$file_name),]$sample_name) > 0) {
@@ -151,7 +150,6 @@ Sample_list <- ICPMS_directories_tidy %>%
 write.csv(Sample_list, "Sample_list.csv")
 ```
 
-CHUNK 5 - DATA PROCESSING
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 ```{r data processing, echo = F, message=T}
 # This will be different for each corals sample + standards
@@ -171,8 +169,7 @@ Runs_Sample_23_10_3 <- ICPMS_csvfiles_tidy[c("A72","A73","A74","A75","A76")]
 Runs_Sample_23_6_1 <- ICPMS_csvfiles_tidy[c("A80","A81","A82","A83","A84")]
 Runs_Sample_23_6_2 <- ICPMS_csvfiles_tidy[c("A88","A89","A90","A91","A92")]
 Runs_Sample_23_6_3 <- ICPMS_csvfiles_tidy[c("A96","A97","A98","A99","A100")]
-
-Signals_graph_folder <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Element_Signals"
+Signals_graph_folder <- "~/Library/CloudStorage/OneDrive-UniversityofSouthampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Element_Signals/"
 
 # 612 standards code ####
 Analysis_612 <- list()
@@ -228,6 +225,7 @@ datapoints_graph <- datapoints +
 assign(paste0(names(Runs_612[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_612[[paste0(names(Runs_612[j]), "_Elementsignals")]] <- datapoints_graph
 
+#Blanks
 Preblank <- Runs_612[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
@@ -236,15 +234,86 @@ Postblank <- Runs_612[[j]] %>%
   filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
-Allblanks <- full_join(Preblank, Postblank)
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
 
+sd.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+m.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
+no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Preblank)) {
+  for (o in 1:nrow(Preblank)) {
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+  }
+}
+
+for(x in 1:ncol(m.Postblank)) {
+  for (o in 1:nrow(Postblank)) {
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Preblank) <- names(Preblank[12:21])
+no.outliers.Preblank <- as_tibble(no.outliers.Preblank)
+
+colnames(no.outliers.Postblank) <- names(Postblank[12:21])
+no.outliers.Postblank <- as_tibble(no.outliers.Postblank)
+
+Preblank_V2 <- Runs_612[[j]] %>%
+  filter(`Time [Sec]` <= 30.5) %>%
+  cbind(., no.outliers.Preblank)
+
+Postblank_V2 <- Runs_612[[j]] %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  cbind(., no.outliers.Postblank)
+
+Allblanks <- full_join(Preblank_V2, Postblank_V2)
+
+# Analysis
 Analysis <- Runs_612[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_612[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
+
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Analysis)) {
+  for (o in 1:nrow(Analysis)) {
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Analysis) <- names(Analysis[12:21])
+no.outliers.Analysis <- as_tibble(no.outliers.Analysis)
+
+Analysis_V2 <- Runs_612[[j]] %>%
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>%
+  cbind(., no.outliers.Analysis)
+
+Analysis_full <- full_join(Allblanks, Analysis_V2)
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -357,8 +426,6 @@ assign(paste0(names(Runs_612[j]), "_Calculations"), Data_averages_V2)
 Calculations_612[[paste0(names(Runs_612[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-
-if(SignalPlots == T) {
 plot_a_list(Elementdata_612, 7,2)
 
 ggsave(
@@ -375,7 +442,6 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_612, 7,2, ylim = c(0,.6), xlim = c(0,200))
-}
 
 # JCP standards code ####
 Analysis_JCP <- list()
@@ -407,6 +473,7 @@ Delta_Ca <- (Runs_JCP[[j]]$Ca43[x+3] - Runs_JCP[[j]]$Ca43[x])/(Runs_JCP[[j]]$`Ti
   Delta_Ca_dataframe
 }
 
+# Restrict to first 50 seconds in case there is a jump in the calcium in the middle of the standard (due to artifcats)
 Cut_off1 <- max(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time <= 50),]$Delta_Ca, na.rm = T)
 # In case there is a jump in the calcium at the exterior of the coral (due to calcification boundary)
 Cut_off2 <- min(Delta_Ca_dataframe[which(Delta_Ca_dataframe$Time >= max(Delta_Ca_dataframe$Time, na.rm = T)/2),]$Delta_Ca, na.rm = T)
@@ -431,6 +498,7 @@ datapoints_graph <- datapoints +
 assign(paste0(names(Runs_JCP[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_JCP[[paste0(names(Runs_JCP[j]), "_Elementsignals")]] <- datapoints_graph
 
+#Blanks
 Preblank <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
@@ -439,15 +507,86 @@ Postblank <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
-Allblanks <- full_join(Preblank, Postblank)
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
 
+sd.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+m.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
+no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Preblank)) {
+  for (o in 1:nrow(Preblank)) {
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+  }
+}
+
+for(x in 1:ncol(m.Postblank)) {
+  for (o in 1:nrow(Postblank)) {
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Preblank) <- names(Preblank[12:21])
+no.outliers.Preblank <- as_tibble(no.outliers.Preblank)
+
+colnames(no.outliers.Postblank) <- names(Postblank[12:21])
+no.outliers.Postblank <- as_tibble(no.outliers.Postblank)
+
+Preblank_V2 <- Runs_JCP[[j]] %>%
+  filter(`Time [Sec]` <= 30.5) %>%
+  cbind(., no.outliers.Preblank)
+
+Postblank_V2 <- Runs_JCP[[j]] %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  cbind(., no.outliers.Postblank)
+
+Allblanks <- full_join(Preblank_V2, Postblank_V2)
+
+# Analysis
 Analysis <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_JCP[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
+
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Analysis)) {
+  for (o in 1:nrow(Analysis)) {
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Analysis) <- names(Analysis[12:21])
+no.outliers.Analysis <- as_tibble(no.outliers.Analysis)
+
+Analysis_V2 <- Runs_JCP[[j]] %>%
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>%
+  cbind(., no.outliers.Analysis)
+
+Analysis_full <- full_join(Allblanks, Analysis_V2)
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -561,14 +700,13 @@ Calculations_JCP[[paste0(names(Runs_JCP[j]), "_Calculations")]] <- Data_averages
 
 }
 
-if(SignalPlots == T) {
+
 plot_a_list(Elementdata_JCP, 7,2)
 
 ggsave(
   "JCP_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 30,
   height = 40,
@@ -577,11 +715,7 @@ ggsave(
   bg = NULL
 )
 
-plot_a_list(Elementdata_612, 7,2)
-
-
 plot_a_list(Li_Ca_ratios_JCP, 7,2, ylim = c(0,.01), xlim = c(0,200))
-}
 
 # DSC standards code ####
 Analysis_DSC <- list()
@@ -595,7 +729,7 @@ nc<-wes_palette(length(names(Runs_DSC[[j]][2:11])), name="Darjeeling1", type="co
 datapoints <- ggplot(data = Runs_DSC[[j]], aes(x = `Time [Sec]`)) 
 
 for (a in 2:11) {
-  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_JCP[[j]])[a], color =  shQuote(names(Runs_JCP[[j]])[a])))
+  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_DSC[[j]])[a], color =  shQuote(names(Runs_DSC[[j]])[a])))
 }
 
 if (names(Runs_DSC[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_DSC[[j]][7]), " for Runs_DSC_", j))} # Ca43
@@ -637,6 +771,7 @@ datapoints_graph <- datapoints +
 assign(paste0(names(Runs_DSC[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_DSC[[paste0(names(Runs_DSC[j]), "_Elementsignals")]] <- datapoints_graph
 
+#Blanks
 Preblank <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
@@ -645,15 +780,86 @@ Postblank <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
-Allblanks <- full_join(Preblank, Postblank)
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
 
+sd.Preblank <- Preblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+m.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Postblank <- Postblank %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
+no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Preblank)) {
+  for (o in 1:nrow(Preblank)) {
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+  }
+}
+
+for(x in 1:ncol(m.Postblank)) {
+  for (o in 1:nrow(Postblank)) {
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Preblank) <- names(Preblank[12:21])
+no.outliers.Preblank <- as_tibble(no.outliers.Preblank)
+
+colnames(no.outliers.Postblank) <- names(Postblank[12:21])
+no.outliers.Postblank <- as_tibble(no.outliers.Postblank)
+
+Preblank_V2 <- Runs_DSC[[j]] %>%
+  filter(`Time [Sec]` <= 30.5) %>%
+  cbind(., no.outliers.Preblank)
+
+Postblank_V2 <- Runs_DSC[[j]] %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  cbind(., no.outliers.Postblank)
+
+Allblanks <- full_join(Preblank_V2, Postblank_V2)
+
+# Analysis
 Analysis <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_DSC[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+# want to reject "bad" data in blanks - use +/- 4sd limit
+# determine means and s.d of each element
+m.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
+
+sd.Analysis <- Analysis %>%
+  summarise(across(all_of(c(12:21)), ~ sd(., na.rm = T), .names = "{col}_sd"))
+
+no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
+
+
+# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+for(x in 1:ncol(m.Analysis)) {
+  for (o in 1:nrow(Analysis)) {
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+  }
+}
+
+colnames(no.outliers.Analysis) <- names(Analysis[12:21])
+no.outliers.Analysis <- as_tibble(no.outliers.Analysis)
+
+Analysis_V2 <- Runs_DSC[[j]] %>%
+  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>%
+  cbind(., no.outliers.Analysis)
+
+Analysis_full <- full_join(Allblanks, Analysis_V2)
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -768,14 +974,12 @@ Calculations_DSC[[paste0(names(Runs_DSC[j]), "_Calculations")]] <- Data_averages
 
 }
 
-if(SignalPlots == T) {
 plot_a_list(Elementdata_DSC, 6,2)
 
 ggsave(
   "DSC_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 30,
   height = 40,
@@ -785,7 +989,6 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_DSC, 7,2, ylim = c(0,.005), xlim = c(0,200))
-}
 
 # Samples code - first sample (23-16_1) ####
 Analysis_Sample_23_16_1 <- list()
@@ -841,6 +1044,7 @@ datapoints_graph <- datapoints +
 assign(paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals")]] <- datapoints_graph
 
+
 Preblank <- Runs_Sample_23_16_1[[j]] %>%
   filter(`Time [Sec]` <= 30.5) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
@@ -852,12 +1056,10 @@ Postblank <- Runs_Sample_23_16_1[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_1[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 40 seconds and finished 56 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_1[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -971,14 +1173,13 @@ assign(paste0(names(Runs_Sample_23_16_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T) {
+
 plot_a_list(Elementdata_Sample_23_16_1, 2,3)
 
 ggsave(
   "Sample_23_16_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -986,7 +1187,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-16_2) ####
 Analysis_Sample_23_16_2 <- list()
 Calculations_Sample_23_16_2 <- list()
@@ -999,7 +1200,7 @@ nc<-wes_palette(length(names(Runs_Sample_23_16_2[[j]][2:11])), name="Darjeeling1
 datapoints <- ggplot(data = Runs_Sample_23_16_2[[j]], aes(x = `Time [Sec]`)) 
 
 for (a in 2:11) {
-  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_JCP[[j]])[a], color =  shQuote(names(Runs_JCP[[j]])[a])))
+  datapoints <- datapoints + geom_line(aes_string(y = names(Runs_Sample_23_16_2[[j]])[a], color =  shQuote(names(Runs_Sample_23_16_2[[j]])[a])))
 }
 
 if (names(Runs_Sample_23_16_2[[j]][7]) != "Ca43") {stop(paste0("Wrong element! ", names(Runs_Sample_23_16_2[[j]][7]), " for Runs_Sample_23_16_2_", j))} # Ca43
@@ -1046,18 +1247,16 @@ Preblank <- Runs_Sample_23_16_2[[j]] %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_16_2[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-50) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_2[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 32 seconds and finished 56 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_2[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1171,14 +1370,13 @@ assign(paste0(names(Runs_Sample_23_16_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_16_2, 2,3)
 
 ggsave(
   "Sample_23_16_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1186,7 +1384,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-16_3) ####
 Analysis_Sample_23_16_3 <- list()
 Calculations_Sample_23_16_3 <- list()
@@ -1195,7 +1393,7 @@ Li_Ca_ratios_Sample_23_16_3 <- list()
 j <- 1
 for (j in 1:length(Runs_Sample_23_16_3)) {
 
-nc<-wes_palette(length(names(Runs_Sample_23_16_2[[j]][2:11])), name="Darjeeling1", type="continuous")
+nc<-wes_palette(length(names(Runs_Sample_23_16_3[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_16_3[[j]], aes(x = `Time [Sec]`)) 
 
 for (a in 2:11) {
@@ -1252,12 +1450,19 @@ Postblank <- Runs_Sample_23_16_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_16_3[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 38 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-58) %>% # analysis started at 38 seconds and finished 58 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_16_3[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1371,14 +1576,13 @@ assign(paste0(names(Runs_Sample_23_16_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_16_3, 2,3)
 
 ggsave(
   "Sample_23_16_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1388,7 +1592,7 @@ ggsave(
 )
 
 plot_a_list(Li_Ca_ratios_Sample_23_16_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
-}
+
 # Samples code - first sample (23-1_1) ####
 Analysis_Sample_23_1_1 <- list()
 Calculations_Sample_23_1_1 <- list()
@@ -1396,7 +1600,7 @@ Elementdata_Sample_23_1_1 <- list()
 Li_Ca_ratios_Sample_23_1_1 <- list()
 j <- 1
 for (j in 1:length(Runs_Sample_23_1_1)) {
-  
+
 nc<-wes_palette(length(names(Runs_Sample_23_1_1[[j]][2:11])), name="Darjeeling1", type="continuous")
 datapoints <- ggplot(data = Runs_Sample_23_1_1[[j]], aes(x = `Time [Sec]`)) 
 
@@ -1448,18 +1652,25 @@ Preblank <- Runs_Sample_23_1_1[[j]] %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_1[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_1[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-58) %>% # analysis started at 41 seconds and finished 58 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_1[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1573,14 +1784,13 @@ assign(paste0(names(Runs_Sample_23_1_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_1_1, 2,3)
 
 ggsave(
   "Sample_23_1_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1588,7 +1798,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-1_2) ####
 Analysis_Sample_23_1_2 <- list()
 Calculations_Sample_23_1_2 <- list()
@@ -1648,18 +1858,25 @@ Preblank <- Runs_Sample_23_1_2[[j]] %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_2[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_2[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-59) %>% # analysis started at 41 seconds and finished 58 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_2[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1773,14 +1990,13 @@ assign(paste0(names(Runs_Sample_23_1_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_1_2, 2,3)
 
 ggsave(
   "Sample_23_1_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1788,7 +2004,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-1_3) ####
 Analysis_Sample_23_1_3 <- list()
 Calculations_Sample_23_1_3 <- list()
@@ -1844,22 +2060,29 @@ assign(paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals"), datapoints_graph
 Elementdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-48) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_1_3[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-59) %>% # analysis started at 32 seconds and finished 51 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_1_3[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1973,14 +2196,13 @@ assign(paste0(names(Runs_Sample_23_1_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_1_3, 2,3)
 
 ggsave(
   "Sample_23_1_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1988,8 +2210,8 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
 
+plot_a_list(Li_Ca_ratios_Sample_23_1_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
 
 # Samples code - first sample (23-10_1) ####
 Analysis_Sample_23_10_1 <- list()
@@ -2044,24 +2266,30 @@ datapoints_graph <- datapoints +
 
 assign(paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals")]] <- datapoints_graph
-
 Preblank <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-45) %>%
+  filter(`Time [Sec]` >= max(`Time [Sec]`, na.rm = T)-46) %>%
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_postblank"))
 
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_1[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 40 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-57) %>% # analysis started at 35 seconds and finished 55 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_1[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2176,14 +2404,12 @@ Calculations_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Calculation
 
 }
 
-if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_10_1, 2,3)
 
 ggsave(
   "Sample_23_10_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2191,7 +2417,6 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
 
 # Samples code - first sample (23-10_2) ####
 Analysis_Sample_23_10_2 <- list()
@@ -2248,7 +2473,7 @@ assign(paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals"), datapoints_grap
 Elementdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_2[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_2[[j]] %>%
@@ -2258,12 +2483,19 @@ Postblank <- Runs_Sample_23_10_2[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_2[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 44 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-55) %>% # analysis started at 44 seconds and finished 55 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_2[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2377,14 +2609,13 @@ assign(paste0(names(Runs_Sample_23_10_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_10_2, 2,3)
 
 ggsave(
   "Sample_23_10_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2392,7 +2623,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-10_3) ####
 Analysis_Sample_23_10_3 <- list()
 Calculations_Sample_23_10_3 <- list()
@@ -2448,7 +2679,7 @@ assign(paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals"), datapoints_grap
 Elementdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_3[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_10_3[[j]] %>%
@@ -2458,12 +2689,19 @@ Postblank <- Runs_Sample_23_10_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_10_3[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 41 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-56) %>% # analysis started at 42 seconds and finished 55 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_10_3[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2578,14 +2816,12 @@ Calculations_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Calculation
 
 }
 
-if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_10_3, 2,3)
 
 ggsave(
   "Sample_23_10_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2593,7 +2829,8 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
+plot_a_list(Li_Ca_ratios_Sample_23_10_3, 5,1, ylim = c(0,.005), xlim = c(0,200))
 
 # Samples code - first sample (23-6_1) ####
 Analysis_Sample_23_6_1 <- list()
@@ -2650,7 +2887,7 @@ assign(paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals"), datapoints_graph
 Elementdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_1[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_1[[j]] %>%
@@ -2660,12 +2897,19 @@ Postblank <- Runs_Sample_23_6_1[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_1[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 47 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-80) %>% # analysis started at 47 seconds and finished 80 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_1[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2779,14 +3023,13 @@ assign(paste0(names(Runs_Sample_23_6_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
-if(SignalPlots == T){
+
 plot_a_list(Elementdata_Sample_23_6_1, 2,3)
 
 ggsave(
   "Sample_23_6_1_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2794,7 +3037,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-6_2) ####
 Analysis_Sample_23_6_2 <- list()
 Calculations_Sample_23_6_2 <- list()
@@ -2850,7 +3093,7 @@ assign(paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals"), datapoints_graph
 Elementdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_2[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_2[[j]] %>%
@@ -2860,12 +3103,19 @@ Postblank <- Runs_Sample_23_6_2[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_2[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 42 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-70) %>% # analysis started at 42 seconds and finished 70 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_2[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2980,14 +3230,12 @@ Calculations_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Calculations"
 
 }
 
-if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_6_2, 2,3)
 
 ggsave(
   "Sample_23_6_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2995,7 +3243,7 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
 # Samples code - first sample (23-6_3) ####
 Analysis_Sample_23_6_3 <- list()
 Calculations_Sample_23_6_3 <- list()
@@ -3051,7 +3299,7 @@ assign(paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals"), datapoints_graph
 Elementdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_3[[j]] %>%
-  filter(`Time [Sec]` <= 30.5) %>%
+  filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
 
 Postblank <- Runs_Sample_23_6_3[[j]] %>%
@@ -3061,12 +3309,19 @@ Postblank <- Runs_Sample_23_6_3[[j]] %>%
 Allblanks <- full_join(Preblank, Postblank)
 
 Analysis <- Runs_Sample_23_6_3[[j]] %>%
-  filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
+  filter(`Time [Sec]` >= 42 & `Time [Sec]` <= max(`Time [Sec]`, na.rm = T)-70) %>% # analysis started at 42 seconds and finished 70 seconds before end of ablation
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-Analysis_full <- full_join(full_join(Allblanks, Analysis), Runs_Sample_23_6_3[[j]])
-Analysis_full <- Analysis_full[order(Analysis_full$`Time [Sec]`),]
-row.names(Analysis_full) <- NULL
+Analysis_full <- full_join(Allblanks, Analysis)
+
+Li_datapoints <- ggplot() +
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black")
+
+assign(paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata"), Li_datapoints)
+Lithiumdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -3181,14 +3436,12 @@ Calculations_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Calculations"
 
 }
 
-if(SignalPlots == T){
 plot_a_list(Elementdata_Sample_23_6_3, 2,3)
 
 ggsave(
   "Sample_23_6_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
-  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -3196,7 +3449,8 @@ ggsave(
   dpi = 300,
   bg = NULL
 )
-}
+
+plot_a_list(Li_Ca_ratios_Sample_23_6_3, 5,1, ylim = c(0,.005), xlim = c(0,400))
 
 ```
 
@@ -3215,6 +3469,8 @@ JCP_Corrected_Sample_23_10_3 <- list()
 JCP_Corrected_Sample_23_6_1 <- list()
 JCP_Corrected_Sample_23_6_2 <- list()
 JCP_Corrected_Sample_23_6_3 <- list()
+
+JCP_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/JCP_Corrected/"
 
 # remember need to keep all ratios to same unit (µmol/mol)
 # Mg/Ca JCP constant is in mmol/mol so needs to be multiplied by 1000
@@ -3499,12 +3755,10 @@ JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_1")]] <- JCP_Corrected_Sa
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_10")]] <- JCP_Corrected_Sample_23_10
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_6")]] <- JCP_Corrected_Sample_23_6
 
-JCP_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/JCP_Corrected/"
-
 for (i in 1:length(JCP_Corrected_Samples)) {
   for (j in 1:length(JCP_Corrected_Samples[[i]])) {
     for (x in 1:length(JCP_Corrected_Samples[[i]][[j]])) {
-      filename = paste(JCP_Corrected_path, names(JCP_Corrected_Samples[[i]][[j]])[[x]], ".csv")
+      filename = paste0(JCP_Corrected_path, names(JCP_Corrected_Samples[[i]][[j]])[[x]], ".csv")
       write.csv(JCP_Corrected_Samples[[i]][[j]][[x]], filename)
     }
   }
@@ -3528,6 +3782,8 @@ NIST612_Corrected_Sample_23_10_3 <- list()
 NIST612_Corrected_Sample_23_6_1 <- list()
 NIST612_Corrected_Sample_23_6_2 <- list()
 NIST612_Corrected_Sample_23_6_3 <- list()
+
+NIST612_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected/"
 
 # need to change the 612 for each DSC run (i & i +1) #### 
 for (i in 1:length(Analysis_DSC)) {
@@ -3979,12 +4235,10 @@ NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_6")]] <- NIST612_
 i <-1
 j <- 1
 x <- 1
-
-NIST612_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected/"
 for (i in 1:length(NIST612_Corrected_Samples)) {
   for (j in 1:length(NIST612_Corrected_Samples[[i]])) {
     for (x in 1:length(NIST612_Corrected_Samples[[i]][[j]])) {
-      filename = paste(NIST612_Corrected_path, names(NIST612_Corrected_Samples[[i]][[j]])[[x]], ".csv")
+      filename = paste0(NIST612_Corrected_path,names(NIST612_Corrected_Samples[[i]][[j]])[[x]], ".csv")
       write.csv(NIST612_Corrected_Samples[[i]][[j]][[x]], filename)
     }
   }
@@ -4000,7 +4254,7 @@ View(Calculations_JCP)
 View(Calculations_612)
 NIST612_Corrected_JCP <- list()
 i<-1
-select
+
 ## JCP ####
 for (i in 1:length(Calculations_JCP)) {
   NIST612_corrected_ratios <-
