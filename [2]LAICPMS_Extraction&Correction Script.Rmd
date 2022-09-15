@@ -2,7 +2,7 @@
 title: "LAICPMS_Extraction&Correction Script"
 author: "Thomas J Williams"
 date: "16/05/2022"
-version: "2.10"
+version: "2.11"
 edited by: "Thomas J Williams"
 edit date: "29/06/2022"
 output: html_document
@@ -251,18 +251,32 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Preblank)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Preblank)) {
-   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
-                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + R*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - R*sd.Preblank[x], Preblank[o,11+x], NA)
   }
 }
 
 for(x in 1:ncol(m.Postblank)) {
   for (o in 1:nrow(Postblank)) {
-   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
-                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + R*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - R*sd.Postblank[x], Postblank[o,11+x], NA)
   }
 }
 
@@ -298,11 +312,24 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Analysis)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Analysis)) {
-   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
-                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + R*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - R*sd.Analysis[x], Analysis[o,11+x], NA)
   }
 }
 
@@ -524,18 +551,31 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Preblank)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Preblank)) {
-   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
-                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + R*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - R*sd.Preblank[x], Preblank[o,11+x], NA)
   }
 }
 
 for(x in 1:ncol(m.Postblank)) {
   for (o in 1:nrow(Postblank)) {
-   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
-                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + R*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - R*sd.Postblank[x], Postblank[o,11+x], NA)
   }
 }
 
@@ -571,11 +611,24 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Analysis)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Analysis)) {
-   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
-                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + R*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - R*sd.Analysis[x], Analysis[o,11+x], NA)
   }
 }
 
@@ -706,6 +759,7 @@ plot_a_list(Elementdata_JCP, 7,2)
 ggsave(
   "JCP_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 30,
@@ -797,18 +851,31 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Preblank)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Preblank)) {
-   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + 4*sd.Preblank[x] & 
-                                         Preblank[o,11+x] > m.Preblank[x] - 4*sd.Preblank[x], Preblank[o,11+x], NA)
+   no.outliers.Preblank[o,x] <- ifelse(Preblank[o,11+x] < m.Preblank[x] + R*sd.Preblank[x] & 
+                                         Preblank[o,11+x] > m.Preblank[x] - R*sd.Preblank[x], Preblank[o,11+x], NA)
   }
 }
 
 for(x in 1:ncol(m.Postblank)) {
   for (o in 1:nrow(Postblank)) {
-   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + 4*sd.Postblank[x] & 
-                                         Postblank[o,11+x] > m.Postblank[x] - 4*sd.Postblank[x], Postblank[o,11+x], NA)
+   no.outliers.Postblank[o,x] <- ifelse(Postblank[o,11+x] < m.Postblank[x] + R*sd.Postblank[x] & 
+                                         Postblank[o,11+x] > m.Postblank[x] - R*sd.Postblank[x], Postblank[o,11+x], NA)
   }
 }
 
@@ -844,11 +911,24 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against 4 s.d. of the mean for that element
+# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
+
 for(x in 1:ncol(m.Analysis)) {
+  if (Elements[x] == "U238" | Elements[x] == "Ba137" | Elements[x] == "Mn55") {
+  R<-2 
+} else { if(Elements[x] == "P31") {
+  R<-3
+} else { if (Elements[x] == "Li7" | Elements[x] == "Sr86") {
+  R<-3
+} else {
+  R<-4
+  }
+  }
+  }
   for (o in 1:nrow(Analysis)) {
-   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + 4*sd.Analysis[x] & 
-                                         Analysis[o,11+x] > m.Analysis[x] - 4*sd.Analysis[x], Analysis[o,11+x], NA)
+   no.outliers.Analysis[o,x] <- ifelse(Analysis[o,11+x] < m.Analysis[x] + R*sd.Analysis[x] & 
+                                         Analysis[o,11+x] > m.Analysis[x] - R*sd.Analysis[x], Analysis[o,11+x], NA)
   }
 }
 
@@ -980,6 +1060,7 @@ ggsave(
   "DSC_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 30,
   height = 40,
@@ -1179,6 +1260,7 @@ plot_a_list(Elementdata_Sample_23_16_1, 2,3)
 ggsave(
   "Sample_23_16_1_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -1376,6 +1458,7 @@ plot_a_list(Elementdata_Sample_23_16_2, 2,3)
 ggsave(
   "Sample_23_16_2_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -1583,6 +1666,7 @@ ggsave(
   "Sample_23_16_3_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -1790,6 +1874,7 @@ plot_a_list(Elementdata_Sample_23_1_1, 2,3)
 ggsave(
   "Sample_23_1_1_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -1996,6 +2081,7 @@ plot_a_list(Elementdata_Sample_23_1_2, 2,3)
 ggsave(
   "Sample_23_1_2_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -2202,6 +2288,7 @@ plot_a_list(Elementdata_Sample_23_1_3, 2,3)
 ggsave(
   "Sample_23_1_3_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -2409,6 +2496,7 @@ plot_a_list(Elementdata_Sample_23_10_1, 2,3)
 ggsave(
   "Sample_23_10_1_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -2616,6 +2704,7 @@ ggsave(
   "Sample_23_10_2_Element_Signals.tiff",
   plot = last_plot(),
   device = "tiff",
+  path = Signals_graph_folder,
   scale = 1,
   width = 50,
   height = 20,
@@ -2821,6 +2910,7 @@ plot_a_list(Elementdata_Sample_23_10_3, 2,3)
 ggsave(
   "Sample_23_10_3_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -3029,6 +3119,7 @@ plot_a_list(Elementdata_Sample_23_6_1, 2,3)
 ggsave(
   "Sample_23_6_1_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
@@ -3235,6 +3326,7 @@ plot_a_list(Elementdata_Sample_23_6_2, 2,3)
 ggsave(
   "Sample_23_6_2_Element_Signals.tiff",
   plot = last_plot(),
+  path = Signals_graph_folder,
   device = "tiff",
   scale = 1,
   width = 50,
