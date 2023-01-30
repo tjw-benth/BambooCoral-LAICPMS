@@ -2,9 +2,9 @@
 title: "LAICPMS_Data_rastering&analysis Script"
 author: "Thomas J Williams"
 date: "26/05/2022"
-version: "2.04"
+version: "2.10"
 edited by: "Thomas J Williams"
-edit date: "31/08/2022"
+edit date: "24/01/2023"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -22,7 +22,7 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r packages and functions, echo = F, message=T}
 
-packages <- c("tidyverse", "janitor", "sjmisc", "Hmisc", "viridis", "ggthemes", "patchwork", "raster", "terra", "GGally")
+packages <- c("tidyverse", "janitor", "sjmisc", "Hmisc", "viridis", "ggthemes", "ggpmisc", "patchwork", "raster", "terra", "GGally")
 rasterpackages <- c("caTools", "scatterplot3d", "wesanderson", "matrixStats", "viridis", "RColorBrewer", "raster", "rasterVis", "hillshader")
 
 options(scipen = 100)
@@ -65,9 +65,18 @@ testit <- function(x)
     proc.time() - p1 # The cpu usage should be negligible
 }
 
+# my_fun function
+my_fn <- function(data, mapping, ...){
+      p <- ggplot(data = data, mapping = mapping) + 
+        geom_bin_2d(bins = 30, alpha = 0.5, show.legend = T, na.rm = T) +
+  scale_fill_continuous(type = "viridis") +
+  theme_classic()
+      p
+   }
+
 ```
 
-## Collating tracks to each coral section (5 adjacent tracks per section)
+## Collating tracks to each coral section (5 adjacent tracks per section) and applying secondary normalisation based off JcP inaccuracies
 
 ```{r collating tracks per section - 612 corrected, echo=T, message=T}
 
@@ -105,15 +114,51 @@ for(j in 1:length(Samples)) { # 4 samples
     Tracks_data <- Tracks_data[-c(1:60),] # remove first 60 rows (30 second blank at 0.5s)
     Tracks_data <- head(Tracks_data, -90) # remove last 90 rows (45 second blank at 0.5s)
     Tracks_data$Row <- NULL
-    assign(paste0(Element), Tracks_data)
-    Sample_ratios[[paste0(Element)]] <- Tracks_data
+    
+    # Secondary normalization - based off JCp standard inaccuracies (no P or Mn as massive variability - %SD > 70)
+    if(Element == "Li_Ca_umol_mol") {
+      Tracks_data_normalised <- Tracks_data * (100-8.76811768)/100
+    } else { if(Element == "B_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100+1.7848328)/100
+    } else { if(Element == "Mg_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100-3.76115643)/100
+    } else { if(Element == "Sr_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100+4.6428207)/100
+    } else { if(Element == "U_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100+8.6738645)/100
+    } else { if(Element == "S_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100+27.92745)/100
+    } else { if(Element == "Ba_Ca_umol_mol"){
+      Tracks_data_normalised <- Tracks_data * (100+28.26798)/100
+    } else { Tracks_data_normalised <- Tracks_data }}}}}}}
+    
+    assign(paste0(Element), Tracks_data_normalised)
+    Sample_ratios[[paste0(Element)]] <- Tracks_data_normalised
     rm(Tracks_data)
+    rm(Tracks_data_normalised)
     }
   assign(paste0("Sample_",Samples[j],"_",a,"_ratios"), Sample_ratios)
   rm(Sample_ratios)
   }
 }
 # View(Sample_23_16_3_ratios)
+
+# Adding Li/Mg to samples 
+Sample_23_1_1_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_1_1_ratios[["Li_Ca_umol_mol"]]/(Sample_23_1_1_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_1_2_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_1_2_ratios[["Li_Ca_umol_mol"]]/(Sample_23_1_2_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_1_3_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_1_3_ratios[["Li_Ca_umol_mol"]]/(Sample_23_1_3_ratios[["Mg_Ca_umol_mol"]]/1000)
+
+Sample_23_6_1_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_6_1_ratios[["Li_Ca_umol_mol"]]/(Sample_23_6_1_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_6_2_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_6_2_ratios[["Li_Ca_umol_mol"]]/(Sample_23_6_2_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_6_3_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_6_3_ratios[["Li_Ca_umol_mol"]]/(Sample_23_6_3_ratios[["Mg_Ca_umol_mol"]]/1000)
+
+Sample_23_10_1_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_10_1_ratios[["Li_Ca_umol_mol"]]/(Sample_23_10_1_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_10_2_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_10_2_ratios[["Li_Ca_umol_mol"]]/(Sample_23_10_2_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_10_3_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_10_3_ratios[["Li_Ca_umol_mol"]]/(Sample_23_10_3_ratios[["Mg_Ca_umol_mol"]]/1000)
+
+Sample_23_16_1_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_16_1_ratios[["Li_Ca_umol_mol"]]/(Sample_23_16_1_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_16_2_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_16_2_ratios[["Li_Ca_umol_mol"]]/(Sample_23_16_2_ratios[["Mg_Ca_umol_mol"]]/1000)
+Sample_23_16_3_ratios[["Li_Mg_umol_mmol"]] <- Sample_23_16_3_ratios[["Li_Ca_umol_mol"]]/(Sample_23_16_3_ratios[["Mg_Ca_umol_mol"]]/1000)
 
 # for Calcium counts ONLY ####
 for(j in 1:length(Samples)) { # 4 samples
@@ -157,7 +202,7 @@ for(j in 1:length(Samples)) { # 4 samples
 
 ```{r intial read and plot of line scans}
 
-Ratios <- c("Li_Ca", "B_Ca", "Mg_Ca", "P_Ca", "S_Ca", "Mn_Ca", "Sr_Ca", "Ba_Ca", "U_Ca")
+Ratios <- c("Li_Ca", "B_Ca", "Mg_Ca", "P_Ca", "S_Ca", "Mn_Ca", "Sr_Ca", "Ba_Ca", "U_Ca", "Li_Mg")
 
 plotdimensions <- par(mfrow=c(1,1),
                      mar=c(0.2,0.2,0.2,0.2),
@@ -176,21 +221,21 @@ c <- 1
 b <- 1
 
 # Do you want to plot outputs or just run code?
-rasterplot = F
 lineplot = F
-pattern = F
+pattern = T
 
 #Standard error output dataframe
 Standard_errors <- data.frame(Sample = character(),
                               Section = character(),
                               Element = character(),
                               mean_value = numeric(),
-                              standard_error_av = numeric(),
-                              standard_error_av_2 = numeric(),
+                              standard_dev_2_av = numeric(),
+                              standard_error_2_av = numeric(),
                               coefficient_variation_av = numeric(),
                               max_value = numeric(),
                               min_value = numeric()
                                  )
+
 #Reset plot dimensions
 dev.off()
 
@@ -206,7 +251,7 @@ for(c in 1:length(Samples)) { # 4 samples
     testit(0.05) #pause for script to find file in time before reading
     XY_dim<-read.csv(file = paste0(Dimensionspath,temp), header=TRUE)
     
-    for(a in 1:length(Ratios)) { # 9 ratios
+    for(a in 1:length(Ratios)) { # 10 ratios
       Sample_ratio <- Sample_ratios[[a]]
       cat("Sample: ", Samples[c], b, Ratios[a], "\n")
 
@@ -224,7 +269,7 @@ if (Ratios[a] == "U_Ca" | Ratios[a] == "Ba_Ca" | Ratios[a] == "Mn_Ca") {
   R<-2 
 } else { if(Ratios[a] == "P_Ca") {
   R<-3
-} else { if (Ratios[a] == "Li_Ca" | Ratios[a] == "Sr_Ca") {
+} else { if (Ratios[a] == "Li_Ca" | Ratios[a] == "Sr_Ca" | Ratios[a] == "Li_Mg") {
   R<-3
 } else {
   R<-4
@@ -263,16 +308,16 @@ y.grid.um<-y.grid*spot.size
 
 #plot (x.grid.um, y.grid.um)
 
-#colours
-nc<-wes_palette(no.tracks, name="Darjeeling1", type="continuous")
-
-##Plots ####
-plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min (Sample_ratio, na.rm=TRUE),max(Sample_ratio, na.rm=TRUE)), ylab = paste0(Ratios[a]))
-mtext("Raw data", side = 3)
-#loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
-for (j in 1:no.tracks){
-  lines (r.depth, (Sample_ratio[,j]), col=nc[j])
-}
+# #colours
+# nc<-wes_palette(no.tracks, name="Darjeeling1", type="continuous")
+# 
+# ##Plots ####
+# plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min (Sample_ratio, na.rm=TRUE),max(Sample_ratio, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+# mtext("Raw data", side = 3)
+# #loop to plot each line scan, stepping through the Li_Ca vector column at a time (j increase by 1 up to a max = number of lines) 
+# for (j in 1:no.tracks){
+#   lines (r.depth, (Sample_ratio[,j]), col=nc[j])
+# }
 
 #want to now do some rejection of "bad" data - we use a +/-3sd limit
 #determine the means and sd of each line
@@ -285,9 +330,9 @@ for (j in 1:no.tracks){
   m.sd[j]<-sd (Sample_ratio[,j], na.rm=TRUE)
   }
 
-#plot of these 
-plot (m.L)
-plot (m.sd)
+# #plot of these 
+# plot (m.L)
+# plot (m.sd)
 
 #replace 3sd outliers with NA ####
 #make matrix to fill with original data and NA when original data outside of +/-3sd
@@ -300,14 +345,14 @@ for (j in 1:no.tracks){
     L.o[i,j]<-ifelse (Sample_ratio[i,j] < m.L[j]+R*m.sd[j] & Sample_ratio[i,j] > m.L[j]-R*m.sd[j], Sample_ratio[i,j], NA)
   }}
 
-#have a look at the data -rejections
-plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o, na.rm=TRUE),max(L.o, na.rm=TRUE)), ylab = paste0(Ratios[a]))
-mtext("No outliers", side = 3)
-#number of colours
-#loop to plot each line
-for (j in 1:no.tracks){
-  lines (r.depth, (L.o[,j]), col=nc[j])
-}
+# #have a look at the data -rejections
+# plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o, na.rm=TRUE),max(L.o, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+# mtext("No outliers", side = 3)
+# #number of colours
+# #loop to plot each line
+# for (j in 1:no.tracks){
+#   lines (r.depth, (L.o[,j]), col=nc[j])
+# }
 
 ##smoothing ####
 #degree of smoothing (choose a variable from 2 to n, 5 is probably ok)
@@ -323,40 +368,27 @@ for (j in 1:no.tracks){
     
   }
 
-#take a look at the results of the smoothing
-plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s, na.rm = T),max(L.o.s, na.rm=TRUE)), ylab = paste0(Ratios[a]))
-mtext("Smoothed data", side = 3)
-for (j in 1:no.tracks){
-  lines (r.depth, (L.o.s[,j]), col=nc[j])
-}
+# #take a look at the results of the smoothing
+# plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s, na.rm = T),max(L.o.s, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+# mtext("Smoothed data", side = 3)
+# for (j in 1:no.tracks){
+#   lines (r.depth, (L.o.s[,j]), col=nc[j])
+# }
 # dev.copy(png, paste0(Smoothpath, "Sample_",Samples[c],"_",b,"_",Ratios[a], "smoothplot.png"))
 # dev.off()
 # assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_smoothplot"), smoothplot)
 # rm(smoothplot)
 
-# standard deviation over the track
-plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s.sd, na.rm=TRUE),max(L.o.s.sd, na.rm=TRUE)), ylab = paste0(Ratios[a]))
-mtext("Rolling st.dev", side = 3)
-#number of cols
-for (j in 1:no.tracks){
-  lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
-}
+# # standard deviation over the track
+# plot (r.depth, Sample_ratio[,1], type="n", ylim=c(min(L.o.s.sd, na.rm=TRUE),max(L.o.s.sd, na.rm=TRUE)), ylab = paste0(Ratios[a]))
+# mtext("Rolling st.dev", side = 3)
+# #number of cols
+# for (j in 1:no.tracks){
+#   lines (r.depth, (L.o.s.sd[,j])/(no.tracks^0.5), col=nc[j])
+# }
 
 ##average se for each of the smoothed points####
 se <- mean (L.o.s.sd/(SM^0.5), na.rm=TRUE)*2
-
-Standard_errors <- Standard_errors %>% add_row(
-  Sample = paste0(Samples[c]),
-  Section = paste0(b),
-  Element = Ratios[a],
-  mean_value = mean((L.o.s[,j]), na.rm = T),
-  standard_error_av = se,
-  standard_error_av_2 = se*2,
-  coefficient_variation_av = ((mean(L.o.s.sd[,j], na.rm = T))/mean((L.o.s[,j]), na.rm = T))*100,
-  max_value = max((L.o.s[,j]), na.rm = T),
-  min_value = min((L.o.s[,j]), na.rm = T)
-)
-
 
 ## collate the lineplots and export####
 if(lineplot == T) {
@@ -407,8 +439,10 @@ dev.off()
 ## pattern plots ####
 if (pattern == T) {
   pattern_data <- as.data.frame(L.o.s)
-  if(Samples[c] == "23_6") { next } else {
-  pattern_data$distance.um <- -x.grid.um[,1]}
+  if(Samples[c] == "23_6") { 
+    pattern_data$distance.um <- x.grid.um[,1] } else {
+         pattern_data$distance.um <- -x.grid.um[,1] 
+       }
   
 pattern_data <-  pattern_data %>%
     rowwise() %>%
@@ -418,21 +452,37 @@ pattern_data <-  pattern_data %>%
            sd2 = sd*2,
            se2 = sd2/sqrt(n),
            max = max(c(V1,V2,V3,V4,V5), na.rm = TRUE),
-           min = min(c(V1,V2,V3,V4,V5), na.rm = TRUE))
+           min = min(c(V1,V2,V3,V4,V5), na.rm = TRUE),
+           coefficient_var = sd/mean)
 
 pattern_data[pattern_data$max == -Inf,]$max <- NA
 pattern_data[pattern_data$min == Inf,]$min <- NA
 
 assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_patterndata"), pattern_data)
 
-Variability_plot <- ggplot(data = pattern_data) +
-  geom_path(aes(distance.um, mean), lty =1, size = 0.8) +
+Standard_errors <- Standard_errors %>% add_row(
+  Sample = paste0(Samples[c]),
+  Section = paste0(b),
+  Element = Ratios[a],
+  mean_value = mean(pattern_data$mean, na.rm = T),
+  standard_dev_2_av = mean(pattern_data$sd2, na.rm = T),
+  standard_error_2_av = mean(pattern_data$se2, na.rm = T),
+  coefficient_variation_av = mean(pattern_data$coefficient_var, na.rm = T),
+  max_value = max(pattern_data$max, na.rm = T),
+  min_value = min(pattern_data$min, na.rm = T)
+)
+
+Variability_plot <- ggplot(data = pattern_data, aes(x = distance.um, y = mean)) +
   geom_ribbon(aes(x = distance.um, y=mean, ymax=mean+se2, ymin=mean-se2), fill="#227988",alpha=.5) +
   geom_path(aes(distance.um, max), lty =2, size = 0.5) +
   geom_path(aes(distance.um, min), lty =2, size = 0.5) +
+  geom_path(aes(distance.um, mean), lty =1, size = 0.8) +
+  stat_poly_line(col = "red", linetype = 3) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label),
+                                 after_stat(rr.label), sep = "*\", \"*"))) +
+  ggpubr::stat_cor(method = "pearson", label.x.npc = .5) +
   scale_y_continuous(name = paste0(Ratios[a]," (µmol/mol)")) +
-  scale_x_continuous(name = "Distance (µm)") +
-  geom_label(aes(x = max(distance.um/2), y = max(mean, na.rm = T)), label = paste0("Sample_",Samples[c],"_",b), size = 3) +
+  scale_x_reverse(name = "Distance from coral edge (µm)") +
   theme_classic()
 
 assign(paste0("Sample_",Samples[c],"_",b,"_",Ratios[a], "_variabilityplot"), Variability_plot)
@@ -462,120 +512,6 @@ r <- raster(e, ncol=size, nrow=no.tracks)
 x <- rasterize(s100[, 1:2], r, s100[,3], fun=mean)
 
 assign(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " raster"), x)
-
-# if (rasterplot == T) {
-# #rough visualisation
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,4,1,5),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot(x, col=(rev(rainbow(30))), asp=1.25, axes = F)
-# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow"), side = 3)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,4,1,5),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot (x, col=viridis(20), asp=1.25, axes = F)
-# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " viridis"), side = 3)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis.png"))
-# dev.off()
-# 
-# 
-# contour (x)
-# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " contour"), side = 3)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " contour.png"))
-# dev.off()
-# 
-# #function that does some smoothing when making an image
-# plot.new()
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,4,1,5),
-#                      bty = "n",
-#                      bg = "transparent")
-# filledContour(x, col=rev(rainbow(19)), asp=1.25, frame.plot = F)
-# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " rainbow smooth"), side = 3)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " rainbowsmooth.png"))
-# dev.off()
-# 
-# #with Wesanderson pallet
-# col1<-wes_palette(25, name="Darjeeling1", type="continuous")
-# 
-# #par (mfrow=c(1,1)) #desktop plotting
-# #par(mar=c(1.5,1.5, 1.5, 1.5))
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# filledContour(x, col=(col1), cex.axis=0.8, asp=1.25, axes = T)
-# mtext(paste0("Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeeling smooth"), side = 3)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeelingsmooth.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot (x, col=col1, asp=1.25, axes = F)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " Darjeeling.png"))
-# dev.off()
-# #with other palettes. 
-# col2<-viridis(28)
-# col3<-inferno(28)
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# filledContour(x, col=(col2), cex.axis=0.8, asp=1.25, axes = F)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridissmooth.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# filledContour(x, col=(col3), cex.axis=0.8, asp=1.25, axes = F)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " infernosmooth.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot(x, col=(col2), cex.axis=0.8, asp=1.25, axes = F)
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis2.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot(x,col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=paste0(Ratios[a], " (µmol/l)"), side=4, line=3,cex=0.8, las=0))
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " inferno3.png"))
-# dev.off()
-# 
-# par(mfrow=c(1,1),
-#                      mar=c(0.2,0.2,0.2,0.2),
-#                      oma=c(5,5,1,4),
-#                      bty = "n",
-#                      bg = "transparent")
-# plot(x,col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=paste0(Ratios[a], " (µmol/l)"), side=4, line=3,cex=0.8, las=0))
-# dev.copy(png, paste0(Rasterpath, "Sample_", Samples[c],"_",b," ", Ratios[a], " viridis3.png"))
-# dev.off()
-# }
     }
   }
 }
@@ -755,8 +691,91 @@ assign(paste0(Ratios[a], "_raster_list"), Element_raster_list)
 }
 rm(Element_raster_list)
 
+Sr_Ca_rasters <- grep(paste0("*","Sr_Ca", " raster"),names(.GlobalEnv),value=TRUE)
+Sr_Ca_rasters_list <- do.call("list", mget(Sr_Ca_rasters))
+Sr_Ca_rasters_list <- Sr_Ca_rasters_list[order(names(Sr_Ca_rasters_list))]
+U_Ca_rasters <- grep(paste0("*","U_Ca", " raster"),names(.GlobalEnv),value=TRUE)
+U_Ca_rasters_list <- do.call("list", mget(U_Ca_rasters))
+U_Ca_rasters_list <- U_Ca_rasters_list[order(names(U_Ca_rasters_list))]
+
+rm(Sr_Ca_rasters)
+rm(U_Ca_rasters)
+
+for(a in 1:length(Sr_Ca_rasters_list)) {
+  Sr_U_raster <- (Sr_Ca_rasters_list[[a]]/1000) - (U_Ca_rasters_list[[a]]*1.1107)
+  assign(paste0(gsub(" .*$", "", names(Sr_Ca_raster_list[a])), " Sr_U raster"), Sr_U_raster)
+}
+
+Sr_U_rasters <- grep(paste0("*","Sr_U", " raster"),names(.GlobalEnv),value=TRUE)
+Sr_U_raster_list <-do.call("list",mget(Sr_U_rasters))
+
+rm(Sr_U_rasters)
+
 Rasterpath_viridis <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_rasters/Interpolated/"
-b <- 1
+
+b<- 1
+# Temperature proxies
+col2 <- viridis(40)
+plot.new()
+for (b in 1:length(Li_Mg_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Li_Mg_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Mg (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,2,by = 0.05))
+mtext(paste0(names(Li_Mg_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Li_Mg_raster_list[b]), "_viridis_interpolated.png"))
+dev.off()
+frame()
+}
+
+# V high values, not saying much
+col2 <- inferno(40)
+plot.new()
+for (b in 1:length(Mg_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Mg_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Mg/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(60000,100000,by = 1000))
+mtext(paste0(names(Mg_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Mg_Ca_raster_list[b]), "_viridis_interpolated.png"))
+dev.off()
+frame()
+}
+
+col1 <-inferno(20)
+plot.new()
+for (b in 1:length(Sr_Ca_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Sr_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Sr/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(2500,3500,by = 50))
+mtext(paste0(names(Sr_Ca_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Sr_Ca_raster_list[b]), "_inferno_interpolated.png"))
+dev.off()
+frame()
+}
+
+col1 <-inferno(20)
+plot.new
+for (b in 1:length(Sr_U_raster_list)) {
+  par(mfrow=c(1,1),
+                     mar=c(0.2,0.2,0.2,0.2),
+                     oma=c(5,5,1,4),
+                     bty = "n",
+                     bg = "transparent")
+plot(Sr_U_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Sr/U (mmol/µmol)", side=4, line=3,cex=0.8, las=0), breaks = seq(2,4,by = 0.1))
+mtext(paste0(names(Sr_U_raster_list[b]),"_viridis"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Sr_U_raster_list[b]), "_inferno_interpolated.png"))
+dev.off()
+frame()
+}
+
 col2 <- viridis(24)
 plot.new()
 for (b in 1:length(Li_Ca_raster_list)) {
@@ -765,7 +784,7 @@ for (b in 1:length(Li_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(Li_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,120,by = 5))
+plot(Li_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Li/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,120,by = 5))
 mtext(paste0(names(Li_Ca_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(Li_Ca_raster_list[b]), "_viridis_interpolated.png"))
 dev.off()
@@ -780,14 +799,14 @@ for (b in 1:length(B_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(B_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" B/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(100,300,by = 5))
+plot(B_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" B/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(100,300,by = 5))
 mtext(paste0(names(B_Ca_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(B_Ca_raster_list[b]), "_inferno_interpolated.png"))
 dev.off()
 frame()
 }
 
-col3 <-wes_palette(50, name="Darjeeling1", type="continuous")
+col3 <-c(inferno(20),rep("#FFFFFF",20))
 plot.new()
 for (b in 1:length(Ba_Ca_raster_list)) {
   par(mfrow=c(1,1),
@@ -795,31 +814,16 @@ for (b in 1:length(Ba_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(Ba_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Ba/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,40,by = 1))
-mtext(paste0(names(Ba_Ca_raster_list[b]),"_viridis"), side = 3)
-dev.copy(png, paste0(Rasterpath_viridis, names(Ba_Ca_raster_list[b]), "_Dj_interpolated.png"))
-dev.off()
-frame()
-}
-
-# V high values, not saying much
-col2 <- viridis(40)
-plot.new()
-for (b in 1:length(Mg_Ca_raster_list)) {
-  par(mfrow=c(1,1),
-                     mar=c(0.2,0.2,0.2,0.2),
-                     oma=c(5,5,1,4),
-                     bty = "n",
-                     bg = "transparent")
-plot(Mg_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Mg/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(60000,100000,by = 1000))
-mtext(paste0(names(Mg_Ca_raster_list[b]),"_viridis"), side = 3)
-dev.copy(png, paste0(Rasterpath_viridis, names(Mg_Ca_raster_list[b]), "_viridis_interpolated.png"))
+plot(Ba_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend = F, breaks = seq(0,40,by = 1))
+plot(Ba_Ca_raster_list[[b]], col =(inferno(20)), breaks = seq(0,20, by = 1), zlim = c(0,10), interpolate=T, axes = F, legend.args=list(text=" Ba/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), legend.only = T)
+mtext(paste0(names(Ba_Ca_raster_list[b]),"_inferno"), side = 3)
+dev.copy(png, paste0(Rasterpath_viridis, names(Ba_Ca_raster_list[b]), "_Inferno_interpolated.png"))
 dev.off()
 frame()
 }
 
 # Poor, negative ratios. Peaks at coral boundary edge (opposite to Li and B)
-col1 <-inferno(30)
+col1 <- c(inferno(20), rep("#FFFFFF", 50))
 plot.new()
 for (b in 1:length(Mn_Ca_raster_list)) {
   par(mfrow=c(1,1),
@@ -827,8 +831,11 @@ for (b in 1:length(Mn_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(Mn_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Mn/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(-2,30,by = 1))
+plot(Mn_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, breaks = seq(0,35,by = 0.5), zlim = c(0,35), legend = FALSE)
+plot(Mn_Ca_raster_list[[b]], col =(inferno(20)), breaks = seq(0,10, by = 0.5), zlim = c(0,10), interpolate=T, axes = F, legend.args=list(text=" Mn/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), legend.only = T)
+
 mtext(paste0(names(Mn_Ca_raster_list[b]),"_viridis"), side = 3)
+
 dev.copy(png, paste0(Rasterpath_viridis, names(Mn_Ca_raster_list[b]), "_inferno_interpolated.png"))
 dev.off()
 frame()
@@ -842,14 +849,14 @@ for (b in 1:length(P_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(P_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" P/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(150,700,by = 25))
+plot(P_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" P/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(150,700,by = 25))
 mtext(paste0(names(P_Ca_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(P_Ca_raster_list[b]), "_FF_interpolated.png"))
 dev.off()
 frame()
 }
 
-col2 <-viridis(30)
+col2 <-viridis(40)
 plot.new()
 for (b in 1:length(S_Ca_raster_list)) {
   par(mfrow=c(1,1),
@@ -857,29 +864,14 @@ for (b in 1:length(S_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(S_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" S/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(5000,10000,by = 200))
+plot(S_Ca_raster_list[[b]],col=(col2), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" S/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), breaks = seq(6000,12000,by = 150))
 mtext(paste0(names(S_Ca_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(S_Ca_raster_list[b]), "_viridis_interpolated.png"))
 dev.off()
 frame()
 }
 
-col1 <-inferno(20)
-plot.new()
-for (b in 1:length(Sr_Ca_raster_list)) {
-  par(mfrow=c(1,1),
-                     mar=c(0.2,0.2,0.2,0.2),
-                     oma=c(5,5,1,4),
-                     bty = "n",
-                     bg = "transparent")
-plot(Sr_Ca_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Sr/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(2500,3500,by = 50))
-mtext(paste0(names(Sr_Ca_raster_list[b]),"_viridis"), side = 3)
-dev.copy(png, paste0(Rasterpath_viridis, names(Sr_Ca_raster_list[b]), "_inferno_interpolated.png"))
-dev.off()
-frame()
-}
-
-col3 <-wes_palette(20, name="FantasticFox1", type="continuous")
+col3 <-c(viridis(20),rep("#FFFFFF", 50))
 plot.new()
 for (b in 1:length(U_Ca_raster_list)) {
   par(mfrow=c(1,1),
@@ -887,9 +879,12 @@ for (b in 1:length(U_Ca_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(U_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" U/Ca (µmol/l)", side=4, line=3,cex=0.8, las=0), breaks = seq(0,0.1,by = 0.005))
+plot(U_Ca_raster_list[[b]],col=(col3), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, breaks = seq(0,0.28,by = 0.004), zlim = c(0,0.28), legend = FALSE)
+plot(U_Ca_raster_list[[b]], col =(col3), breaks = seq(0,0.08, by = 0.004), zlim = c(0,0.08), interpolate=T, axes = F, legend.args=list(text=" U/Ca (µmol/mol)", side=4, line=3,cex=0.8, las=0), legend.only = T)
+
 mtext(paste0(names(U_Ca_raster_list[b]),"_viridis"), side = 3)
-dev.copy(png, paste0(Rasterpath_viridis, names(U_Ca_raster_list[b]), "_FF_interpolated.png"))
+
+dev.copy(png, paste0(Rasterpath_viridis, names(U_Ca_raster_list[b]), "_DJ_interpolated.png"))
 dev.off()
 frame()
 }
@@ -908,7 +903,7 @@ for (b in 1:length(Ca43_raster_list)) {
                      oma=c(5,5,1,4),
                      bty = "n",
                      bg = "transparent")
-plot(Ca43_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Ca (counts per second)", side=4, line=4.5,cex=0.8, las=0), breaks = seq(1000000,9000000,by = 320000))
+plot(Ca43_raster_list[[b]],col=(col1), interpolate=TRUE, axes = F, cex.axis=0.8, asp = 1.25, alpha = 0.6, legend.args=list(text=" Ca (counts per second)", side=4, line=4.5,cex=0.8, las=0), breaks = seq(4000000,9000000,by = 200000))
 mtext(paste0(names(Ca43_raster_list[b]),"_viridis"), side = 3)
 dev.copy(png, paste0(Rasterpath_viridis, names(Ca43_raster_list[b]), "_inferno_interpolated.png"))
 dev.off()
@@ -931,61 +926,65 @@ assign(paste0("Sample_",Samples[c]," ",Ratios[a], " Variability_plots_list"), Va
 rm(Variability_plots_list)
 
 ## Sample 23-16 ####
-plot_a_list(`Sample_23_16 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1200), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,30), xlim = c(0,1200), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1200), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1200), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,80), xlim = c(0,1200), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,20), xlim = c(250,1200), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(0,1200), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 S_Ca Variability_plots_list`, 3,1, ylim = c(5000,9000), xlim = c(0,1200), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2500,3500), xlim = c(0,1200), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.08), xlim = c(0,1200), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(250,1200), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(1200,0), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,20), xlim = c(1200,0), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(1200,0), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(1200,0), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(1200,0), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,80), xlim = c(1200,0), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(1200,250), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(1200,0), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 S_Ca Variability_plots_list`, 3,1, ylim = c(5000,9000), xlim = c(1200,0), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2500,3500), xlim = c(1200,0), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.08), xlim = c(1200,0), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_16 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(1200,250), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
 
 ## Sample 23-10 ####
-plot_a_list(`Sample_23_10 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1600), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1600), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1600), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,25), xlim = c(0,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,10), xlim = c(250,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(0,1600), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,11000), xlim = c(0,1600), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2800,4000), xlim = c(0,1600), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.1), xlim = c(0,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(250,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(1600,0), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(1600,0), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(1600,0), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(1600,0), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,25), xlim = c(1600,0), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(1600,250), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 P_Ca Variability_plots_list`, 3,1, ylim = c(150,800), xlim = c(1600,0), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,12000), xlim = c(1600,0), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2800,4000), xlim = c(1600,0), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.1), xlim = c(1600,0), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_10 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(1600,250), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
 
 ## Sample 23-6 ####
-plot_a_list(`Sample_23_6 B_Ca Variability_plots_list`, 3,1, ylim = c(100,250), xlim = c(0,-3500), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(0,-3500), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,-3500), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,75), xlim = c(0,-3500), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,20), xlim = c(0,-3500), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(-250,-3500), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 P_Ca Variability_plots_list`, 3,1, ylim = c(150,600), xlim = c(0,-3500), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 S_Ca Variability_plots_list`, 3,1, ylim = c(6000,10000), xlim = c(0,-3500), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2900,3500), xlim = c(0,-3500), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(0,-3500), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(-250,-3500), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 B_Ca Variability_plots_list`, 3,1, ylim = c(100,250), xlim = c(3500,0), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,15), xlim = c(3500,0), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(3500,0), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,75), xlim = c(3500,0), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,20), xlim = c(3500,0), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(-3500,250), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 P_Ca Variability_plots_list`, 3,1, ylim = c(150,600), xlim = c(3500,0), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 S_Ca Variability_plots_list`, 3,1, ylim = c(6000,10000), xlim = c(3500,0), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2900,3500), xlim = c(3500,0), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(3500,0), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_6 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.025), xlim = c(3500,250), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
 
 ## Sample 23-1 ####
-plot_a_list(`Sample_23_1 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(0,1600), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,20), xlim = c(0,1600), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(0,1600), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(0,1600), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,30), xlim = c(0,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,10), xlim = c(250,1600), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 P_Ca Variability_plots_list`, 3,1, ylim = c(150,700), xlim = c(0,1600), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,10000), xlim = c(0,1600), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 Sr_Ca Variability_plots_list`, 3,1, ylim = c(2900,3400), xlim = c(0,1600), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(0,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
-plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(250,1600), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 B_Ca Variability_plots_list`, 3,1, ylim = c(100,300), xlim = c(1600,0), ylab = "B/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Ba_Ca Variability_plots_list`, 3,1, ylim = c(5,20), xlim = c(1600,0), ylab = "Ba/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mg_Ca Variability_plots_list`, 3,1, ylim = c(60000,100000), xlim = c(1600,0), ylab = "Mg/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Li_Ca Variability_plots_list`, 3,1, ylim = c(0,100), xlim = c(1600,0), ylab = "Li/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,30), xlim = c(1600,0), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Mn_Ca Variability_plots_list`, 3,1, ylim = c(0,5), xlim = c(1600,250), ylab = "Mn/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 P_Ca Variability_plots_list`, 3,1, ylim = c(150,700), xlim = c(1600,0), ylab = "P/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 S_Ca Variability_plots_list`, 3,1, ylim = c(6500,10000), xlim = c(1600,0), ylab = "S/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 Sr_Ca Variability_plots_list`, 3,1, ylim = c(3000,3400), xlim = c(-1600,0), ylab = "Sr/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.05), xlim = c(1600,0), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
+plot_a_list(`Sample_23_1 U_Ca Variability_plots_list`, 3,1, ylim = c(0,0.02), xlim = c(1600,250), ylab = "U/Ca (µmol/mol)", xlab = "Distance (µm)")
 
 # Element vs element plots####
-i <- 1
 Sample_element_patterns_list <- list()
 Ratios_folder_path <- paste0("~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_Element_ratios/")
+c <- 1
+b <- 1
+i <- 1
+j <- 1
 
 for(c in 1:length(Samples)) { # 4 samples
    for(b in 1:3) { # 3 sections
@@ -1008,8 +1007,8 @@ for(i in 1:length(Section_element_patterns_list)) {
     reduce(full_join , by = c("distance.um", "Track", Element_name)) 
 }
 Section_element_pattern_data <- Section_element_patterns_list %>%
-  reduce(full_join, by = c("distance.um", "Track")) %>%
-  mutate(Internode = b)
+  reduce(full_join, by = c("distance.um", "Track")) %>% 
+  mutate(Internode = b) 
 assign(paste0("Sample_",Samples[c]," ",b, " element_patterns_data"), Section_element_pattern_data)
 Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patterns_data")]] <- Section_element_pattern_data
    }
@@ -1022,63 +1021,183 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
                               "Ba_Ca","Sr_Ca", 
                               "P_Ca","U_Ca",
                               "B_Ca","Li_Ca",
-                              "S_Ca","Internode", 
+                              "S_Ca","Li_Mg", 
+                              "Internode", 
                               "Track")) 
    
-      Sample_element_patterns_data <- Sample_element_patterns_data[, c("distance.um","Internode","Track","Li_Ca","B_Ca","Mg_Ca","P_Ca","S_Ca","Mn_Ca","Sr_Ca","Ba_Ca","U_Ca")]
+      Sample_element_patterns_data <- Sample_element_patterns_data[, c("distance.um","Internode","Track","Li_Mg","Li_Ca","B_Ca","Mg_Ca","P_Ca","S_Ca","Mn_Ca","Sr_Ca","Ba_Ca","U_Ca")]
       
       
    my_fn <- function(data, mapping, ...){
-      p <- ggplot(data = data, mapping = mapping) + 
-        geom_bin_2d(bins = 30, alpha = 0.5, show.legend = T, na.rm = T) +
-  scale_fill_continuous(type = "viridis") +
-  theme_classic()
+      p <- data %>%
+        ggplot(data = data, mapping = mapping) + 
+        geom_point(show.legend = T, na.rm = T, alpha =0.4) +
+        # scale_color_manual(values = c("red", "green",  "blue"), name = "Internode") +
+        # scale_shape_manual(values = c(21,22,24), name = "Internode") +
+        theme_classic()
       p
    }
-   
-   Sample_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(4:12), 
-           aes(color = as.factor(Internode), alpha = 0.6),
+
+   # All element ratios    
+   Sample_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(4:13), 
+           aes(color = as.factor(Internode), pch = as.factor(Internode), alpha = 0.6),
            title = paste0("Sample ",Samples[c], " element ratios [by internode]  (µmol/mol)"),
            legend = 1,
            lower = list(continuous = my_fn), 
            diag = list(continuous = "densityDiag", alpha = 0.6),
            upper = list(continuous = wrap("cor", method = "spearman", size = 2.5))) +
-           scale_color_manual(values = c("red", "gold",  "blue")) +
+           scale_color_manual(values = c("red", "green",  "blue")) +
            theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 6, angle = 45, vjust = 1, hjust=1)) +
      labs(fill = "Internode", color = "Internode")
    
 
     Sample_element_patterns_ggpairs_internode[1,1] <- Sample_element_patterns_ggpairs_internode[1,1] +
-        scale_fill_manual(values=c("red", "gold", "blue"))
+        scale_fill_manual(values=c("red", "green", "blue"))
     Sample_element_patterns_ggpairs_internode[2,2] <- Sample_element_patterns_ggpairs_internode[2,2] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
     Sample_element_patterns_ggpairs_internode[3,3] <- Sample_element_patterns_ggpairs_internode[3,3] +
-        scale_fill_manual(values=c("red", "gold", "blue"))
+        scale_fill_manual(values=c("red", "green", "blue"))
     Sample_element_patterns_ggpairs_internode[4,4] <- Sample_element_patterns_ggpairs_internode[4,4] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
     Sample_element_patterns_ggpairs_internode[5,5] <- Sample_element_patterns_ggpairs_internode[5,5] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
     Sample_element_patterns_ggpairs_internode[6,6] <- Sample_element_patterns_ggpairs_internode[6,6] +
-        scale_fill_manual(values=c("red", "gold", "blue"))
+        scale_fill_manual(values=c("red", "green", "blue"))
     Sample_element_patterns_ggpairs_internode[7,7] <- Sample_element_patterns_ggpairs_internode[7,7] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
     Sample_element_patterns_ggpairs_internode[8,8] <- Sample_element_patterns_ggpairs_internode[8,8] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
     Sample_element_patterns_ggpairs_internode[9,9] <- Sample_element_patterns_ggpairs_internode[9,9] +
-        scale_fill_manual(values=c("red", "gold", "blue")) 
+        scale_fill_manual(values=c("red", "green", "blue")) 
+    Sample_element_patterns_ggpairs_internode[9,9] <- Sample_element_patterns_ggpairs_internode[10,10] +
+        scale_fill_manual(values=c("red", "green", "blue")) 
     
    assign(paste0("Sample_",Samples[c]," element ratios [by internode]"), Sample_element_patterns_ggpairs_internode)
    rm(Sample_element_patterns_ggpairs_internode)
    
+   # Li, Mg, Sr, S and U
+      Sample_Tempproxy_element_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(4,5,7,9,11,13), 
+           aes(color = as.factor(Internode), pch = as.factor(Internode), fill = as.factor(Internode), linetype = as.factor(Internode)),
+           legend = 1,
+           lower = list(continuous = my_fn), 
+           diag = list(continuous = wrap("densityDiag", alpha = 0.6)),
+           upper = list(continuous = wrap("cor", method = "spearman", size = 4)),
+           columnLabels = c("Li/Mg", "Li/Ca", "Mg/Ca", "S/Ca", "Sr/Ca", "U/Ca"),
+           labeller = "label_parsed") +
+           scale_color_manual(values = c("red", "green",  "blue")) +
+           scale_shape_manual(values = c(21,22,24), name = "Internode") +
+           scale_linetype_manual(values = c(1,2,3), name = "Internode") +
+           theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 9, angle = 45, vjust = 1, hjust=1),
+                 strip.placement = "outside", text = element_text(size = 12)) +
+     labs(fill = "Internode", color = "Internode")
+   
+    Sample_Tempproxy_element_patterns_ggpairs_internode[1,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[1,1] + scale_x_continuous(limits = c(0,2)) + theme_classic()
+    Sample_Tempproxy_element_patterns_ggpairs_internode[1,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[1,2] + theme(panel.ontop = T, panel.background = element_rect(fill = "black"))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[1,3] <- Sample_Tempproxy_element_patterns_ggpairs_internode[1,3] + theme(panel.ontop = T, panel.background = element_rect(fill = "black"))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[2,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[2,1] + scale_x_continuous(limits = c(0,2)) + scale_y_continuous(limits = c(0,120)) + theme_classic() + theme(panel.ontop = T, panel.background = element_rect(fill = "black"))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[2,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[2,2] + scale_x_continuous(limits = c(0,120)) + theme_classic()
+    Sample_Tempproxy_element_patterns_ggpairs_internode[3,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[3,1] + scale_x_continuous(limits = c(0,2)) + scale_y_continuous(limits = c(40000,130000)) + theme(panel.ontop = T, panel.background = element_rect(fill = "black"))  
+    Sample_Tempproxy_element_patterns_ggpairs_internode[3,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[3,2] + scale_x_continuous(limits = c(0,120)) + scale_y_continuous(limits = c(40000,130000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[3,3] <- Sample_Tempproxy_element_patterns_ggpairs_internode[3,3] + scale_x_continuous(limits = c(40000,130000)) + theme_classic()
+    Sample_Tempproxy_element_patterns_ggpairs_internode[4,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[4,1] + scale_x_continuous(limits = c(0,2)) + scale_y_continuous(limits = c(3000,15000))     
+    Sample_Tempproxy_element_patterns_ggpairs_internode[4,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[4,2] + scale_x_continuous(limits = c(0,120)) + scale_y_continuous(limits = c(3000,15000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[4,3] <- Sample_Tempproxy_element_patterns_ggpairs_internode[4,3] + scale_x_continuous(limits = c(40000,130000)) + scale_y_continuous(limits = c(3000,15000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[4,4] <- Sample_Tempproxy_element_patterns_ggpairs_internode[4,4] + scale_x_continuous(limits = c(3000,15000)) + theme_classic()
+    Sample_Tempproxy_element_patterns_ggpairs_internode[5,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[5,1] + scale_x_continuous(limits = c(0,2)) + scale_y_continuous(limits = c(2000,5000))     
+    Sample_Tempproxy_element_patterns_ggpairs_internode[5,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[5,2] + scale_x_continuous(limits = c(0,120)) + scale_y_continuous(limits = c(2000,5000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[5,3] <- Sample_Tempproxy_element_patterns_ggpairs_internode[5,3] + scale_x_continuous(limits = c(40000,130000)) + scale_y_continuous(limits = c(2000,5000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[5,4] <- Sample_Tempproxy_element_patterns_ggpairs_internode[5,4] + scale_x_continuous(limits = c(3000,15000)) + scale_y_continuous(limits = c(2000,5000)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[5,5] <- Sample_Tempproxy_element_patterns_ggpairs_internode[5,5] + scale_x_continuous(limits = c(2000,5000)) + theme_classic()
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,1] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,1] + scale_x_continuous(limits = c(0,2)) + scale_y_continuous(limits = c(0,0.15))    
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,2] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,2] + scale_x_continuous(limits = c(0,120)) + scale_y_continuous(limits = c(0,0.15))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,3] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,3] + scale_x_continuous(limits = c(40000,130000)) + scale_y_continuous(limits = c(0,0.15))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,4] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,4] + scale_x_continuous(limits = c(3000,15000)) + scale_y_continuous(limits = c(0,0.15))
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,5] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,5] + scale_x_continuous(limits = c(2000,5000)) + scale_y_continuous(limits = c(0,0.15)) 
+    Sample_Tempproxy_element_patterns_ggpairs_internode[6,6] <- Sample_Tempproxy_element_patterns_ggpairs_internode[6,6] + scale_x_continuous(limits = c(0,0.15)) + theme_classic()
+
+    
+   assign(paste0("Sample_",Samples[c]," Temp proxy element ratios [by internode]"), Sample_Tempproxy_element_patterns_ggpairs_internode)
+   rm(Sample_Tempproxy_element_patterns_ggpairs_internode)
+   
+   
+      # Ba vs Li, Mg, Sr, S and U
+      Sample_Ba_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(5,7,9,11,13,12), 
+           aes(color = as.factor(Internode), pch = as.factor(Internode), fill = as.factor(Internode), linetype = as.factor(Internode)),
+           legend = 1,
+           lower = list(continuous = my_fn), 
+           diag = list(continuous = wrap("densityDiag", alpha = 0.6)),
+           upper = list(continuous = wrap("cor", method = "spearman", size = 4)),
+           columnLabels = c("Li/Ca", "Mg/Ca", "S/Ca", "Sr/Ca", "U/Ca", "Ba/Ca"),
+           labeller = "label_parsed") +
+           scale_color_manual(values = c("red", "green",  "blue")) +
+           scale_shape_manual(values = c(21,22,24), name = "Internode") +
+           scale_linetype_manual(values = c(1,2,3), name = "Internode") +
+           theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 9, angle = 45, vjust = 1, hjust=1),
+                 strip.placement = "outside", text = element_text(size = 12), axis.text.y.left = element_blank(), axis.ticks.y.left = element_blank()) +
+     labs(fill = "Internode", color = "Internode")
+   
+
+    Sample_Ba_patterns_ggpairs_internode[1,1] <- Sample_Ba_patterns_ggpairs_internode[1,1] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[2,2] <- Sample_Ba_patterns_ggpairs_internode[2,2] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[3,3] <- Sample_Ba_patterns_ggpairs_internode[3,3] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[4,4] <- Sample_Ba_patterns_ggpairs_internode[4,4] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[5,5] <- Sample_Ba_patterns_ggpairs_internode[5,5] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[6,6] <- Sample_Ba_patterns_ggpairs_internode[6,6] + theme_classic()
+    
+    plots <- lapply(1:Sample_Ba_patterns_ggpairs_internode$nrow, function(i) getPlot(Sample_Ba_patterns_ggpairs_internode, i = i, j = 6))
+    
+    Sample_Ba_patterns_ggpairs_internode <- ggmatrix(plots,
+    nrow = Sample_Ba_patterns_ggpairs_internode$nrow,
+    ncol = 6,
+    xAxisLabels = "Ba/Ca",
+    yAxisLabels = Sample_Ba_patterns_ggpairs_internode$yAxisLabels)
+    
+   assign(paste0("Sample_",Samples[c]," Ba/Ca vs TE Spearman cor [by internode]"), Sample_Ba_patterns_ggpairs_internode)
+   rm(Sample_Ba_patterns_ggpairs_internode)
+   
+   Sample_Ba_patterns_ggpairs_internode <- ggpairs(Sample_element_patterns_data, columns = c(4,6,8,10,12,11), 
+           aes(color = as.factor(Internode), pch = as.factor(Internode), fill = as.factor(Internode), linetype = as.factor(Internode)),
+           legend = 1,
+           lower = list(continuous = my_fn), 
+           diag = list(continuous = wrap("densityDiag", alpha = 0.6)),
+           upper = list(continuous = wrap("cor", method = "pearson", size = 4)),
+           columnLabels = c("Li/Ca", "Mg/Ca", "S/Ca", "Sr/Ca", "U/Ca", "Ba/Ca"),
+           labeller = "label_parsed") +
+           scale_color_manual(values = c("red", "green",  "blue")) +
+           scale_shape_manual(values = c(21,22,24), name = "Internode") +
+           scale_linetype_manual(values = c(1,2,3), name = "Internode") +
+           theme(legend.position = "bottom", axis.text.x.bottom = element_text(size = 9, angle = 45, vjust = 1, hjust=1),
+                 strip.placement = "outside", text = element_text(size = 12), axis.text.y.left = element_blank(), axis.ticks.y.left = element_blank()) +
+     labs(fill = "Internode", color = "Internode")
+   
+
+    Sample_Ba_patterns_ggpairs_internode[1,1] <- Sample_Ba_patterns_ggpairs_internode[1,1] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[2,2] <- Sample_Ba_patterns_ggpairs_internode[2,2] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[3,3] <- Sample_Ba_patterns_ggpairs_internode[3,3] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[4,4] <- Sample_Ba_patterns_ggpairs_internode[4,4] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[5,5] <- Sample_Ba_patterns_ggpairs_internode[5,5] + theme_classic()
+    Sample_Ba_patterns_ggpairs_internode[6,6] <- Sample_Ba_patterns_ggpairs_internode[6,6] + theme_classic()
+    
+    plots <- lapply(1:Sample_Ba_patterns_ggpairs_internode$nrow, function(i) getPlot(Sample_Ba_patterns_ggpairs_internode, i = i, j = 6))
+    
+    Sample_Ba_patterns_ggpairs_internode <- ggmatrix(plots,
+    nrow = Sample_Ba_patterns_ggpairs_internode$nrow,
+    ncol = 6,
+    xAxisLabels = "Ba/Ca",
+    yAxisLabels = Sample_Ba_patterns_ggpairs_internode$yAxisLabels)
+    
+   assign(paste0("Sample_",Samples[c]," Ba/Ca vs TE Pearson cor [by internode]"), Sample_Ba_patterns_ggpairs_internode)
+   rm(Sample_Ba_patterns_ggpairs_internode)
+   
    my_fn <- function(data, mapping, ...){
       p <- ggplot(data = data, mapping = mapping) + 
-        geom_bin2d(bins = 30, alpha = 1, show.legend = T, na.rm = T) +
-  scale_fill_continuous(type = "viridis") +
+        geom_point(show.legend = T, na.rm = T, alpha =0.4) +
   theme_classic()
       p
-}
+   }
    
-      Sample_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(4:12), 
+   # All element ratios
+      Sample_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(4:13), 
            title = paste0("Sample ",Samples[c], " element ratios  (µmol/mol)"),
            lower = list(continuous = my_fn), 
            upper = list(continuous = "blank")) +
@@ -1086,6 +1205,16 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
   
     assign(paste0("Sample_",Samples[c]," element ratios"), Sample_element_patterns_ggpairs)
     rm(Sample_element_patterns_ggpairs)
+  
+    # Li, Mg, Sr, S and U
+        Sample_Tempproxy_element_patterns_ggpairs <- ggpairs(Sample_element_patterns_data, columns = c(4,5,7,9,11,13), 
+           title = paste0("Sample ",Samples[c], " element ratios  (µmol/mol)"),
+           lower = list(continuous = my_fn), 
+           upper = list(continuous = "blank")) +
+        theme(axis.text.x.bottom = element_text(size = 6, angle = 45, vjust = 1, hjust=1))
+  
+    assign(paste0("Sample_",Samples[c]," Temp proxy element ratios"), Sample_Tempproxy_element_patterns_ggpairs)
+    rm(Sample_Tempproxy_element_patterns_ggpairs)
   }
 
 #Ratio vs ratio ####
@@ -1094,6 +1223,19 @@ Sample_element_patterns_list[[paste0("Sample_",Samples[c]," ",b, " element_patte
 ggsave(
   "Sample_23_16 element ratios.tiff",
   plot = `Sample_23_16 element ratios`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
+`Sample_23_16 Temp proxy element ratios` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_16 Temp proxy element ratios.tiff",
+  plot = `Sample_23_16 Temp proxy element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -1115,6 +1257,19 @@ ggsave(
   dpi = 300,
 )
 
+`Sample_23_16 Temp proxy element ratios [by internode]` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_16 Temp proxy element ratios [by internode].tiff",
+  plot = `Sample_23_16 Temp proxy element ratios [by internode]`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
 `Sample_23_10 element ratios` # missing legend for geom_bins
 
 ggsave(
@@ -1128,11 +1283,37 @@ ggsave(
   dpi = 300,
 )
 
+`Sample_23_10 Temp proxy element ratios` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_10 Temp proxy element ratios.tiff",
+  plot = `Sample_23_10 Temp proxy element ratios`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
 `Sample_23_10 element ratios [by internode]` # missing legend for geom_bins
 
 ggsave(
-  "Sample_23_10 element ratios [by internode] _ Pearson r.tiff",
+  "Sample_23_10 element ratios [by internode].tiff",
   plot = `Sample_23_10 element ratios [by internode]`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
+`Sample_23_10 Temp proxy element ratios [by internode]` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_10 Temp proxy element ratios [by internode].tiff",
+  plot = `Sample_23_10 Temp proxy element ratios [by internode]`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -1154,6 +1335,19 @@ ggsave(
   dpi = 300,
 )
 
+`Sample_23_6 Temp proxy element ratios` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_6 Temp proxy element ratios.tiff",
+  plot = `Sample_23_6 Temp proxy element ratios`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
 `Sample_23_6 element ratios [by internode]` # missing legend for geom_bins
 
 ggsave(
@@ -1167,11 +1361,38 @@ ggsave(
   dpi = 300,
 )
 
+`Sample_23_6 Temp proxy element ratios [by internode]` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_6 Temp proxy element ratios [by internode].tiff",
+  plot = `Sample_23_6 Temp proxy element ratios [by internode]`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
+
 `Sample_23_1 element ratios` # missing legend for geom_bins
 
 ggsave(
   "Sample_23_1 element ratios.tiff",
   plot = `Sample_23_1 element ratios`,
+  path = Ratios_folder_path,
+  scale = 1,
+  width = 20,
+  height = 20,
+  units = "cm",
+  dpi = 300,
+)
+
+`Sample_23_1 Temp proxy element ratios` # missing legend for geom_bins
+
+ggsave(
+  "Sample_23_1 Temp proxy element ratios.tiff",
+  plot = `Sample_23_1 Temp proxy element ratios`,
   path = Ratios_folder_path,
   scale = 1,
   width = 20,
@@ -1193,217 +1414,1610 @@ ggsave(
   dpi = 300,
 )
 
-# EXPERIMENTAL FROM THIS POINT ON #####
-View(Sample_element_patterns_list)
-
-Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] <- Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>% mutate_all(~ifelse(is.nan(.), NA, .))
-
-Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
-  group_by(distance.um) %>% # calculate across all tracks
-  summarise(Li_Ca = Li_Ca,
-            Mg_Ca = Mg_Ca/1000) %>%
-ggplot() +
-  geom_path(aes(x = distance.um, y = Li_Ca), col = "grey") +
-  geom_path(aes(x = distance.um, y = Mg_Ca), col = "orange") +
-  geom_label(aes(y = 45, x = 500, label = "Li/Ca (µmol/mol)"),col = "grey") +
-  geom_label(aes(y = 65, x = 500, label = "Mg_Ca (mmol/mol)"), col = "orange") +
-  scale_y_continuous(breaks = c(10,20,30,40,50,60,70,80,90,100)) +
-  labs(y = "Element concentration", x = "Distance from coral edge (µm)")
-
-Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
-  mutate_all(~ifelse(is.nan(.), NA, .)) %>%
-  group_by(distance.um) %>% # calculate across all tracks
-  summarise(Li_Ca = Li_Ca,
-            Mg_Ca = Mg_Ca,
-            Li_Mg = Li_Ca/(Mg_Ca/1000),
-            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.05),
-            Mg_Ca_proxy = (-23.9 + (0.34*(Mg_Ca/1000)))) %>%
-  ggplot() +
-  geom_path(aes(x = distance.um, y = Li_Mg_proxy), col = "red") + # Steward et al., 2020 Ear. Plan. Sci. Lett. for high-Mg octocorals
-  geom_path(aes(x = distance.um, y = Mg_Ca_proxy), col = "blue") + # Thresher et al., 2016 - Geochim. et Cosmich. Acta
-  labs(y = "Reconstructed temperature", x = "Distance from coral edge (µm)") +
-  geom_label(aes(y = 35, x = 500, label = "Li/Mg proxy - Steward et al., 2020"),col = "red") +
-  geom_label(aes(y = 30, x = 500, label = "Mg/Ca proxy - Thresher et al., 2016"), col = "blue")
-
-# Li_Ca and Mg_Ca are comparable to what DSC is expected to be at (see DSC 612 corrected summary table) - yet they seem too high for what we are seeing in other cold-water corals? (Montagna et al., 2014) 
-# Calcite contribution on the Li/Mg proxy - these corals have a very high calcite concentration, so need to use revised equation (Steward et al., 2020) and Rayleigh correction? (Cuny-Guirrec et al., 2019)
-
-# (log(Li_Mg/5.38))/-0.048 - Cuny Cuirrec et al., 2019 Chem. Geol.
-
-formula = y ~ s(x, bs = "cs")
-Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>%
-  group_by(distance.um) %>% # calculate across all tracks
-  summarise(Li_Ca = Li_Ca,
-            Mg_Ca = Mg_Ca,
-            Li_Mg = Li_Ca/(Mg_Ca/1000),
-            Li_Mg_proxy = ((log(Li_Mg/5.38))/-0.048),
-            Mg_Ca_proxy = (-23.9 + (0.34*(Mg_Ca/1000)))) %>%
-  ggplot() +
-  geom_path(aes(x = distance.um, y = Mg_Ca_proxy), col = "blue") + # Thresher et al., 2016 - Geochim. et Cosmich. Acta
-  geom_label(aes(y = 20, x = 300, label = "Mg/Ca proxy - Thresher et al., 2016"), col = "blue") +
-  geom_smooth(aes(x = distance.um, y = Mg_Ca_proxy), col = "black", linetype = 2) +
-  # ggpmisc::stat_poly_eq(aes(label =  paste(after_stat(eq.label),
-  #                                 after_stat(adj.rr.label), sep = "*\", \"*")), formula = formula, method = "gam") +
-  labs(y = "Reconstructed temperature") +
-  theme_classic()
-
-
-
-for(i in Samples) {
-  for (j in 1:3) {
-    Li_Mg_thermometry_plot <- Sample_element_patterns_list[[paste0("Sample_",i, " ",j, " element_patterns_data")]] %>%
-      mutate_all(~ifelse(is.nan(.), NA, .)) %>%
-      group_by(distance.um) %>% # calculate across all tracks
-      summarise(Li_Ca = Li_Ca,
-            Mg_Ca = Mg_Ca,
-            Li_Mg = Li_Ca/(Mg_Ca/1000),
-            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.05),
-            Mg_Ca_proxy = (-23.9 + (0.34*(Mg_Ca/1000)))) %>%
-      ggplot() +
-      geom_path(aes(x = distance.um, y = Li_Mg_proxy), col = "red") + # Steward et al., 2020 Ear. Plan. Sci. Lett. for high-Mg octocorals
-      geom_path(aes(x = distance.um, y = Mg_Ca_proxy), col = "blue") + # Thresher et al., 2016 - Geochim. et Cosmich. Acta
-      labs(y = "Reconstructed temperature", x = "Distance from coral edge (µm)") +
-      geom_label(aes(y = 35, x = 500, label = "Li/Mg proxy - Steward et al., 2020"),col = "red") +
-      geom_label(aes(y = 30, x = 500, label = "Mg/Ca proxy - Thresher et al., 2016"), col = "blue")
-    
-    assign(paste0("Sample_",i, " ",j, " Li_Mg_thermometry"), Li_Mg_thermometry_plot)
-    rm(Li_Mg_thermometry_plot)
-  }
-}
-
-LiMg_folder_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_LiMg_Thermometry"
+`Sample_23_1 Temp proxy element ratios [by internode]` # missing legend for geom_bins
 
 ggsave(
-  "Sample_23_1_1 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_1 1 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_1 Temp proxy element ratios [by internode].tiff",
+  plot = `Sample_23_1 Temp proxy element ratios [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
   width = 20,
-  height = 10,
+  height = 20,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_1 Ba/Ca vs TE Spearman cor [by internode]`
+
 ggsave(
-  "Sample_23_1_2 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_1 2 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_1 Barium v element ratios [spearman by internode].tiff",
+  plot = `Sample_23_1 Ba/Ca vs TE Spearman cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_1 Ba/Ca vs TE Pearson cor [by internode]`
+
 ggsave(
-  "Sample_23_1_3 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_1 3 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_1 Barium v element ratios [pearson by internode].tiff",
+  plot = `Sample_23_1 Ba/Ca vs TE Pearson cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_6 Ba/Ca vs TE Spearman cor [by internode]`
+
 ggsave(
-  "Sample_23_6_1 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_6 1 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_6 Barium v element ratios [spearman by internode].tiff",
+  plot = `Sample_23_6 Ba/Ca vs TE Spearman cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_6 Ba/Ca vs TE Pearson cor [by internode]`
+
 ggsave(
-  "Sample_23_6_2 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_6 2 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_6 Barium v element ratios [pearson by internode].tiff",
+  plot = `Sample_23_6 Ba/Ca vs TE Pearson cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_10 Ba/Ca vs TE Spearman cor [by internode]`
+
 ggsave(
-  "Sample_23_6_3 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_6 3 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_10 Barium v element ratios [spearman by internode].tiff",
+  plot = `Sample_23_10 Ba/Ca vs TE Spearman cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_10 Ba/Ca vs TE Pearson cor [by internode]`
+
 ggsave(
-  "Sample_23_10_1 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_10 1 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_10 Barium v element ratios [pearson by internode].tiff",
+  plot = `Sample_23_10 Ba/Ca vs TE Pearson cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
+`Sample_23_16 Ba/Ca vs TE Spearman cor [by internode]`
+
 ggsave(
-  "Sample_23_10_2 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_10 2 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_16 Barium v element ratios [spearman by internode].tiff",
+  plot = `Sample_23_16 Ba/Ca vs TE Spearman cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
-ggsave(
-  "Sample_23_10_3 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_10 3 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
-  scale = 1,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 300,
-)
+`Sample_23_16 Ba/Ca vs TE Pearson cor [by internode]`
 
 ggsave(
-  "Sample_23_16_1 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_16 1 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
+  "Sample_23_16 Barium v element ratios [pearson by internode].tiff",
+  plot = `Sample_23_16 Ba/Ca vs TE Pearson cor [by internode]`,
+  path = Ratios_folder_path,
   scale = 1,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 300,
-)
-
-ggsave(
-  "Sample_23_16_2 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_16 2 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
-  scale = 1,
-  width = 20,
-  height = 10,
-  units = "cm",
-  dpi = 300,
-)
-
-ggsave(
-  "Sample_23_16_3 Li_Mg_thermometry.tiff",
-  plot = `Sample_23_16 3 Li_Mg_thermometry`,
-  path = LiMg_folder_path,
-  scale = 1,
-  width = 20,
-  height = 10,
+  width = 5,
+  height = 24,
   units = "cm",
   dpi = 300,
 )
 
 ```
 
+
+```{r experimental code}
+
+View(Sample_element_patterns_list)
+
+Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] <- Sample_element_patterns_list[["Sample_23_10 1 element_patterns_data"]] %>% mutate_all(~ifelse(is.nan(.), NA, .))
+
+## Thermometry data for QAnalyseries #####
+i <- "23_6"
+j <- 1
+for(i in Samples) {
+  for (j in 1:3) {
+    
+    thermometry_data <- Sample_element_patterns_list[[paste0("Sample_",i, " ",j, " element_patterns_data")]] %>%
+      ungroup() %>%
+      mutate_all(~ifelse(is.nan(.), NA, .)) %>%
+      group_by(distance.um) %>% # calculate across all tracks
+      summarise(Li_Ca = mean(Li_Ca, na.rm = T),
+            Mg_Ca = mean(Mg_Ca, na.rm = T),
+            Ba_Ca = mean(Ba_Ca, na.rm = T),
+            S_Ca = mean(S_Ca, na.rm = T),
+            Sr_Ca = mean(Sr_Ca, na.rm = T),
+            U_Ca = mean(U_Ca, na.rm = T),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.522))/-0.0343),
+            Mg_Ca_proxy = ((0.313*Mg_Ca/1000)-21.4),
+            S_Ca_proxy = (3.79*S_Ca/1000) + 0.128,
+            Sr_U = (Sr_Ca/1000) - (1.1107*U_Ca),
+            Sr_Ca_proxy = (1.76*Sr_Ca/1000) + 0.553,
+            Sr_U_proxy = (1.85*Sr_U) - 0.292)
+    
+    thermometry_mean <- thermometry_data %>%
+      ungroup() %>%
+      summarise(Li_Mg = mean(Li_Mg, na.rm = T),
+                Mg_Ca = mean(Mg_Ca, na.rm = T),
+                Ba_Ca = mean(Ba_Ca, na.rm = T),
+                S_Ca = mean(S_Ca, na.rm = T),
+                Sr_Ca = mean(Sr_Ca, na.rm = T),
+                U_Ca = mean(U_Ca, na.rm = T),
+                Li_Mg_proxy = mean(Li_Mg_proxy, na.rm = T),
+                Mg_Ca_proxy = mean(Mg_Ca_proxy, na.rm = T),
+                S_Ca_proxy = mean(S_Ca_proxy, na.rm = T),
+                Sr_Ca_proxy = mean(Sr_Ca_proxy, na.rm = T),
+                Sr_U_proxy = mean(Sr_U_proxy, na.rm = T))
+    
+    assign(paste0("Sample_",i, " ",j, " thermometry_data"), thermometry_data)
+    assign(paste0("Sample_",i, " ",j, " thermometry_mean"), thermometry_mean)
+    rm(thermometry_data)
+    rm(thermometry_mean)
+  }
+}
+
+`Sample_23_1 1 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_1_1 TE_data.csv")
+
+`Sample_23_1 2 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_1_2 TE_data.csv")
+
+`Sample_23_1 3 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_1_3 TE_data.csv")
+
+`Sample_23_10 1 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_10_1 TE_data.csv")
+
+`Sample_23_10 2 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_10_2 TE_data.csv")
+
+`Sample_23_10 3 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_10_3 TE_data.csv")
+
+`Sample_23_6 1 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_6_1 TE_data.csv")
+
+`Sample_23_6 2 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_6_2 TE_data.csv")
+
+`Sample_23_6 3 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_6_3 TE_data.csv")
+
+`Sample_23_16 1 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_16_1 TE_data.csv")
+
+`Sample_23_16 2 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_16_2 TE_data.csv")
+
+`Sample_23_16 3 thermometry_data` %>%
+  na.omit %>%
+  dplyr::summarise(Distance = distance.um,
+         Li_Ca, Mg_Ca, Sr_Ca, Ba_Ca, S_Ca, U_Ca, Li_Mg) %>%
+  write_csv(., file = "Sample_23_16_3 TE_data.csv")
+
+# Thermometry plots ####
+
+All_samples_thermometry_data <- dplyr::bind_rows(list(S_23_1=`Sample_23_1 1 thermometry_data`, S_23_6=`Sample_23_6 1 thermometry_data`, S_23_10=`Sample_23_10 1 thermometry_data`, S_23_16=`Sample_23_16 1 thermometry_data`), .id = 'Specimen')
+
+# Adding the tuned internodes 
+All_samples_thermometry_data <- All_samples_thermometry_data %>%
+  mutate(Internode = 1)
+
+Sample_23_1_2_tuned_data <- Sample_23_1_2_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_1",
+         Internode = 2)
+
+Sample_23_1_3_tuned_data <- Sample_23_1_3_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_1",
+         Internode = 3)
+
+Sample_23_6_2_tuned_data <- Sample_23_6_2_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_6",
+         Internode = 2)
+
+Sample_23_6_3_tuned_data <- Sample_23_6_3_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_6",
+         Internode = 3)
+
+Sample_23_10_2_tuned_data <- Sample_23_10_2_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_10",
+         Internode = 2)
+
+Sample_23_10_3_tuned_data <- Sample_23_10_3_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_10",
+         Internode = 3)
+
+Sample_23_16_2_tuned_data <- Sample_23_16_2_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_16",
+         Internode = 2)
+
+Sample_23_16_3_tuned_data <- Sample_23_16_3_ages %>%
+  dplyr::select(-old.depth) %>%
+  mutate(Specimen = "S_23_16",
+         Internode = 3)
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data, Sample_23_1_2_tuned_data,
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_6_2_tuned_data, 
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_10_2_tuned_data, 
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_16_2_tuned_data, 
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_1_3_tuned_data,
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_6_3_tuned_data,
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_10_3_tuned_data,
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- dplyr::full_join(All_samples_thermometry_data_V2, Sample_23_16_3_tuned_data,
+          by = c("distance.um" ="tuned.depth", "Specimen", "Internode", "Li_Ca", "Mg_Ca", "Ba_Ca", "S_Ca", "Sr_Ca", "U_Ca", "Li_Mg"))
+
+All_samples_thermometry_data_V2 <- All_samples_thermometry_data_V2 %>%
+  dplyr::select(-c(10:15))
+
+# Interpolation ####
+layout <- "
+AAAABB
+CCCCDD
+EEEEFF
+"
+## Li/Mg ####
+Li_Mg_thermometry_plot_uninterpolated <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = Li_Mg_proxy, col = Specimen), linetype = 3) + # Steward et al., 2020 Ear. Plan. Sci. Lett. for high-Mg octocorals
+      geom_path(aes(x = Timepoint, y = Li_Mg_proxy_TJW, col = Specimen)) + # this study
+geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2021), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_uninterpolated_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+ filter(Timepoint >= 2000 & Timepoint <= 2021 & Li_Mg_proxy <= 45 & Li_Mg_proxy >= -5 & Li_Mg_proxy_TJW <= 45 & Li_Mg_proxy_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(0.499,0.259,0.989,0.586),
+         TJW_alpha = c(0.399,0.378,1.41,0.781)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,1.5)) +
+      theme_classic()
+    
+
+Li_Mg_thermometry_plot_seasonal_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Li_Mg_proxy_season_TJW, group = Specimen, col = Specimen)) +
+  geom_path(aes(Time, Li_Mg_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+  geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2021), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_seasonal_interpolation_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  filter(Time >= 2000 & Time <= 2021 & Li_Mg_proxy_season <= 45 & Li_Mg_proxy_season >= -5 & Li_Mg_proxy_season_TJW <= 45 & Li_Mg_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy_season, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy_season, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(0.499,0.259,0.989,0.586),
+         TJW_alpha = c(0.399,0.378,1.41,0.781)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,1.5)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_annual_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)
+            ) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Li_Mg_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Li_Mg_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2021), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_annual_interpolation_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)
+            ) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  filter(Time >= 2000 & Time <= 2021 & Li_Mg_proxy_season <= 45 & Li_Mg_proxy_season >= -5 & Li_Mg_proxy_season_TJW <= 45 & Li_Mg_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy_season, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy_season, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(0.495,0.199,0.921,0.612),
+         TJW_alpha = c(0.379,0.289,1.34,0.892)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,1.5)) +
+      theme_classic()
+
+Li_Mg_thermometry_plots <- Li_Mg_thermometry_plot_uninterpolated + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) + 
+  Li_Mg_thermometry_plot_uninterpolated_averages + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Li_Mg_thermometry_plot_seasonal_interpolation  + theme(axis.title.x = element_blank()) +
+  Li_Mg_thermometry_plot_seasonal_interpolation_averages  + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Li_Mg_thermometry_plot_annual_interpolation + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  Li_Mg_thermometry_plot_annual_interpolation_averages + theme(axis.title.y = element_blank()) +
+  plot_layout(design = layout, guides = "collect", )
+
+### Remove coral edge and central axis - common timeframe is now 2003 to 2016 ####
+
+Li_Mg_thermometry_plot_uninterpolated_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = Li_Mg_proxy, col = Specimen), linetype = 3) + # Steward et al., 2020 Ear. Plan. Sci. Lett. for high-Mg octocorals
+      geom_path(aes(x = Timepoint, y = Li_Mg_proxy_TJW, col = Specimen)) + # this study
+geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_uninterpolated_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+  filter(Timepoint >= 2003 & Timepoint <= 2016 & Li_Mg_proxy <= 45 & Li_Mg_proxy >= -5 & Li_Mg_proxy_TJW <= 45 & Li_Mg_proxy_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.13,-0.06,0.3,0.345),
+         TJW_alpha = c(-0.19,-0.09,0.437,0.502)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,0.75)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_seasonal_interpolation_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Li_Mg_proxy_season_TJW, group = Specimen, col = Specimen)) +
+  geom_path(aes(Time, Li_Mg_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+  geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_seasonal_interpolation_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  filter(Time >= 2003 & Time <= 2016 & Li_Mg_proxy_season <= 45 & Li_Mg_proxy_season >= -5 & Li_Mg_proxy_season_TJW <= 45 & Li_Mg_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy_season, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy_season, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.12,-0.06,0.281,0.342),
+         TJW_alpha = c(-0.18, -0.09, 0.41, 0.498)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,0.75)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_annual_interpolation_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)
+            ) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Li_Mg_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Li_Mg_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 30, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      theme_classic()
+
+Li_Mg_thermometry_plot_annual_interpolation_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Li_Mg = Li_Ca/(Mg_Ca/1000),
+            Li_Mg_proxy = ((log(Li_Mg/0.63))/-0.050),
+            Li_Mg_proxy_TJW = ((log(Li_Mg/0.521))/-0.0343)
+            ) %>%
+  drop_na() %>%
+  ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1999 |
+           Specimen == "S_23_16" & Timepoint >= 2003 | Specimen == "S_23_10" & Timepoint >= 1996) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Li_Mg_proxy_season_TJW = spline(Timepoint, Li_Mg_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Li_Mg_proxy_season = spline(Timepoint, Li_Mg_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  filter(Time >= 2003 & Time <= 2016 & Li_Mg_proxy_season <= 45 & Li_Mg_proxy_season >= -5 & Li_Mg_proxy_season_TJW <= 45 & Li_Mg_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Li_Mg_proxy_season, na.rm = T),
+            Pub_sd = sd(Li_Mg_proxy_season, na.rm = T),
+            Pub_se = sd(Li_Mg_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Li_Mg_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Li_Mg_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.11,-0.07,0.28,0.362),
+         TJW_alpha = c(-0.16, -0.11, 0.408, 0.527)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+      scale_y_continuous(limits = c(-5,45)) +
+      scale_x_continuous(limits = c(-0.25,0.75)) +
+      theme_classic()
+
+Li_Mg_thermometry_plots_constrained <- Li_Mg_thermometry_plot_uninterpolated_constrained + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) + 
+  Li_Mg_thermometry_plot_uninterpolated_constrained_averages + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Li_Mg_thermometry_plot_seasonal_interpolation_constrained  + theme(axis.title.x = element_blank()) +
+  Li_Mg_thermometry_plot_seasonal_interpolation_constrained_averages  + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Li_Mg_thermometry_plot_annual_interpolation_constrained + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  Li_Mg_thermometry_plot_annual_interpolation_constrained_averages + theme(axis.title.y = element_blank()) +
+  plot_layout(design = layout, guides = "collect")
+    
+## Mg ####
+Mg_thermometry_plot_uninterpolated <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen, Internode) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+      ggplot() +
+      # geom_path(aes(x = Timepoint, y = Mg_Ca_proxy, col = Specimen), linetype = 3)+ # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+      geom_path(aes(x = Timepoint, y = Mg_Ca_proxy_TJW, col = Specimen, linetype = as.factor(Internode))) + # My calculated relationship
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      facet_grid(rows = vars(Specimen)) +
+      theme_classic()
+
+Mg_thermometry_plot_uninterpolated_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+filter(Timepoint >= 2000 & Timepoint <= 2021 & Mg_Ca_proxy <= 10 & Mg_Ca_proxy >= -5 & Mg_Ca_proxy_TJW <= 10 & Mg_Ca_proxy_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.06,-0.22,-0.15,-0.05),
+         TJW_alpha = c(-0.06,-0.21,-0.15,-0.04)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+Mg_thermometry_plot_seasonal_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Mg_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Mg_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      theme_classic()
+
+Mg_thermometry_plot_seasonal_interpolation_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+filter(Time >= 2000 & Time <= 2021 & Mg_Ca_proxy_season <= 10 & Mg_Ca_proxy_season >= -5 & Mg_Ca_proxy_season_TJW <= 10 & Mg_Ca_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy_season, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy_season, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.07,-0.22,-0.15,-0.04),
+         TJW_alpha = c(-0.06,-0.2,-0.16,-0.04)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+Mg_thermometry_plot_annual_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Mg_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Mg_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      theme_classic()
+
+Mg_thermometry_plot_annual_interpolation_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  filter(Time >= 2000 & Time <= 2021 & Mg_Ca_proxy_season <= 10 & Mg_Ca_proxy_season >= -5 & Mg_Ca_proxy_season_TJW <= 10 & Mg_Ca_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy_season, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy_season, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.09,-0.27,-0.17,-0.06),
+         TJW_alpha = c(-0.08,-0.25,-0.16,-0.05)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+
+Mg_thermometry_plots <- Mg_thermometry_plot_uninterpolated + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) + 
+  Mg_thermometry_plot_uninterpolated_averages + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Mg_thermometry_plot_seasonal_interpolation  + theme(axis.title.x = element_blank()) +
+  Mg_thermometry_plot_seasonal_interpolation_averages  + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Mg_thermometry_plot_annual_interpolation + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  Mg_thermometry_plot_annual_interpolation_averages + theme(axis.title.y = element_blank()) +
+  plot_layout(design = layout, guides = "collect", )
+
+### Remove coral edge and central axis - common timeframe is now 2003 to 2016 ####
+Mg_thermometry_plot_uninterpolated_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = Mg_Ca_proxy, col = Specimen), linetype = 3)+ # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+      geom_path(aes(x = Timepoint, y = Mg_Ca_proxy_TJW, col = Specimen)) + # My calculated relationship
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      theme_classic()
+
+Mg_thermometry_plot_uninterpolated_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+filter(Timepoint >= 2003 & Timepoint <= 2016 & Mg_Ca_proxy <= 10 & Mg_Ca_proxy >= -5 & Mg_Ca_proxy_TJW <= 10 & Mg_Ca_proxy_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.03,-0.17,-0.02,-0.00253),
+         TJW_alpha = c(-0.02,-0.16,-0.02,-0.00233)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+Mg_thermometry_plot_seasonal_interpolation_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Mg_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Mg_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      theme_classic()
+
+Mg_thermometry_plot_seasonal_interpolation_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+filter(Time >= 2003 & Time <= 2016 & Mg_Ca_proxy_season <= 10 & Mg_Ca_proxy_season >= -5 & Mg_Ca_proxy_season_TJW <= 10 & Mg_Ca_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy_season, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy_season, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.02,-0.17,-0.02,-0.00158),
+         TJW_alpha = c(-0.02,-0.16,-0.02,-0.00146)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+Mg_thermometry_plot_annual_interpolation_constrained <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Mg_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Mg_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = -2.5, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2016), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(-5,10)) +
+      theme_classic()
+
+Mg_thermometry_plot_annual_interpolation_constrained_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Mg_Ca_proxy = ((0.34*Mg_Ca/1000)-23.9),
+            Mg_Ca_proxy_TJW = ((0.313*Mg_Ca/1000)-21.4)) %>%
+  drop_na() %>%
+    ungroup() %>%
+  filter(Specimen == "S_23_6" & Timepoint >= 1967 | Specimen == "S_23_1" & Timepoint >= 1998 |
+           Specimen == "S_23_16" & Timepoint >= 2001 | Specimen == "S_23_10" & Timepoint >= 1995) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Mg_Ca_proxy_season_TJW = spline(Timepoint, Mg_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Mg_Ca_proxy_season = spline(Timepoint, Mg_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  filter(Time >= 2003 & Time <= 2016 & Mg_Ca_proxy_season <= 10 & Mg_Ca_proxy_season >= -5 & Mg_Ca_proxy_season_TJW <= 10 & Mg_Ca_proxy_season_TJW >= -5) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(Mg_Ca_proxy_season, na.rm = T),
+            Pub_sd = sd(Mg_Ca_proxy_season, na.rm = T),
+            Pub_se = sd(Mg_Ca_proxy_season, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_sd = sd(Mg_Ca_proxy_season_TJW, na.rm = T),
+            TJW_se = sd(Mg_Ca_proxy_season_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.02,-0.17,-0.03,0.006),
+         TJW_alpha = c(-0.02,-0.16,-0.02,0.006)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(-5,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+
+Mg_thermometry_plots_constrained <- Mg_thermometry_plot_uninterpolated_constrained + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) + 
+  Mg_thermometry_plot_uninterpolated_constrained_averages + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Mg_thermometry_plot_seasonal_interpolation_constrained  + theme(axis.title.x = element_blank()) +
+  Mg_thermometry_plot_seasonal_interpolation_constrained_averages  + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Mg_thermometry_plot_annual_interpolation_constrained + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  Mg_thermometry_plot_annual_interpolation_constrained_averages + theme(axis.title.y = element_blank()) +
+  plot_layout(design = layout, guides = "collect", )
+
+## S ####
+
+S_thermometry_plot_uninterpolated <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            S_Ca_proxy = ((-0.3*S_Ca/1000)+7.52),
+            S_Ca_proxy_TJW = ((0.128*S_Ca/1000)+3.79)) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = S_Ca_proxy, col = Specimen), linetype = 3)+ # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+      geom_path(aes(x = Timepoint, y = S_Ca_proxy_TJW, col = Specimen)) + # My calculated relationship
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 8, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,7)) +
+      theme_classic()
+
+S_thermometry_plot_seasonal_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            S_Ca_proxy = ((-0.3*S_Ca/1000)+7.52),
+            S_Ca_proxy_TJW = ((0.128*S_Ca/1000)+3.79)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            S_Ca_proxy_season_TJW = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            S_Ca_proxy_season = spline(Timepoint, S_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, S_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, S_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 8, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,7)) +
+      theme_classic()
+
+data <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            S_Ca_proxy = ((-0.3*S_Ca/1000)+7.52),
+            S_Ca_proxy_TJW = ((0.128*S_Ca/1000)+3.79)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            S_Ca_proxy_season_TJW = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            S_Ca_proxy_season = spline(Timepoint, S_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y)
+
+S_thermometry_plot_annual_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            S_Ca_proxy = ((-0.3*S_Ca/1000)+7.52),
+            S_Ca_proxy_TJW = ((0.128*S_Ca/1000)+3.79)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            S_Ca_proxy_season_TJW = spline(Timepoint, S_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            S_Ca_proxy_season = spline(Timepoint, S_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, S_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, S_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 8, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,7)) +
+      theme_classic()
+
+
+S_thermometry_plots <- S_thermometry_plot_uninterpolated + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  S_thermometry_plot_seasonal_interpolation  + theme(axis.title.x = element_blank()) +
+  S_thermometry_plot_annual_interpolation + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  plot_layout(nrow = 3, guides = "collect")
+
+
+## Sr ####
+Sr_thermometry_plot_uninterpolated <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Sr_Ca_proxy = ((3.1367*Sr_Ca/1000)-2.06),
+            Sr_Ca_proxy_TJW = ((4.39*Sr_Ca/1000)-7.87)) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = Sr_Ca_proxy, col = Specimen), linetype = 3)+ # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+      geom_path(aes(x = Timepoint, y = Sr_Ca_proxy_TJW, col = Specimen)) + # My calculated relationship
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 9, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,8)) +
+      theme_classic()
+
+
+Sr_thermometry_plot_seasonal_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Sr_Ca_proxy = ((3.1367*Sr_Ca/1000)-2.06),
+            Sr_Ca_proxy_TJW = ((4.39*Sr_Ca/1000)-7.87)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Sr_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            Sr_Ca_proxy_season_TJW = spline(Timepoint, Sr_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            Sr_Ca_proxy_season = spline(Timepoint, Sr_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Sr_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Sr_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 9, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,8)) +
+      theme_classic()
+
+Sr_thermometry_plot_annual_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            Sr_Ca_proxy = ((3.1367*Sr_Ca/1000)-2.06),
+            Sr_Ca_proxy_TJW = ((4.39*Sr_Ca/1000)-7.87)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, Sr_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            Sr_Ca_proxy_season_TJW = spline(Timepoint, Sr_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            Sr_Ca_proxy_season = spline(Timepoint, Sr_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, Sr_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, Sr_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 9, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,8)) +
+      theme_classic()
+
+
+Sr_thermometry_plots <- Sr_thermometry_plot_uninterpolated + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  Sr_thermometry_plot_seasonal_interpolation  + theme(axis.title.x = element_blank()) +
+  Sr_thermometry_plot_annual_interpolation + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  plot_layout(nrow = 3, guides = "collect")
+
+## U ####
+U_thermometry_plot_uninterpolated <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            U_Ca_proxy = ((-0.3*U_Ca/1000)+7.52),
+            U_Ca_proxy_TJW = (((3.36*10^5)*U_Ca/1000)+0.978)) %>%
+      ggplot() +
+      geom_path(aes(x = Timepoint, y = U_Ca_proxy, col = Specimen), linetype = 3)+ # Thresher et al., 2016 - Geochim. et Cosmich. Acta
+      geom_path(aes(x = Timepoint, y = U_Ca_proxy_TJW, col = Specimen)) + # My calculated relationship
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 2.5, x = 1990, label = "No interpolation")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,10)) +
+      theme_classic()
+
+U_thermometry_plot_uninterpolated_averages <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            U_Ca_proxy = ((-0.3*U_Ca/1000)+7.52),
+            U_Ca_proxy_TJW = (((3.36*10^5)*U_Ca/1000)+0.978)) %>%
+filter(Timepoint >= 2000 & Timepoint <= 2021 & U_Ca_proxy <= 10 & U_Ca_proxy >= 0 & U_Ca_proxy_TJW <= 10 & U_Ca_proxy_TJW >= 0) %>%
+  group_by(Specimen) %>%
+  summarise(Samples = n(),
+    Pub_mean = mean(U_Ca_proxy, na.rm = T),
+            Pub_sd = sd(U_Ca_proxy, na.rm = T),
+            Pub_se = sd(U_Ca_proxy, na.rm = T)/sqrt(n()),
+        TJW_mean = mean(U_Ca_proxy_TJW, na.rm = T),
+            TJW_sd = sd(U_Ca_proxy_TJW, na.rm = T),
+            TJW_se = sd(U_Ca_proxy_TJW, na.rm = T)/sqrt(n())) %>%
+  mutate(Pub_alpha = c(-0.06,-0.22,-0.15,-0.05),
+         TJW_alpha = c(-0.06,-0.21,-0.15,-0.04)) %>%
+  pivot_longer(cols = c(3:10), names_to = "Calculation", values_to = "value") %>%
+  separate(col = "Calculation", "_", into = c("Calibration", "Calculation")) %>%
+  pivot_wider(names_from = "Calculation", values_from = "value") %>%
+      ggplot() +
+          geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+  geom_vline(xintercept = 0, linetype = 2) +
+    geom_errorbar(aes(x = alpha, ymin = mean-sd, ymax = mean+sd, linetype = Calibration), 
+                width = 0.1) +
+      geom_point(aes(x = alpha, y = mean, col = Specimen, fill = Calibration), 
+                 pch = 21, size = 4, stroke = 2) +
+  scale_fill_manual(values = c("white", "black")) +
+  scale_linetype_manual(values = c(3,1)) +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = expression("T"["[rec]"]*" trend (°C.yr"^"-1"*")")) +
+       scale_y_continuous(limits = c(0,10)) +
+      scale_x_continuous(limits = c(-0.40,0.6)) +
+      theme_classic()
+
+
+
+U_thermometry_plot_seasonal_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            U_Ca_proxy = ((-0.3*U_Ca/1000)+7.52),
+            U_Ca_proxy_TJW = (((3.36*10^5)*U_Ca/1000)+0.978)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, U_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$x,
+            U_Ca_proxy_season_TJW = spline(Timepoint, U_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 0.25))$y,
+            U_Ca_proxy_season = spline(Timepoint, U_Ca_proxy, xout = seq(min(Timepoint),2021, by = 0.25))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, U_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, U_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 2.5, x = 1990, label = "Seasonal interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,10)) +
+      theme_classic()
+
+U_thermometry_plot_annual_interpolation <- All_samples_thermometry_data_V2 %>%
+      group_by(distance.um, Specimen) %>% 
+      summarise(Timepoint = 2021-(distance.um/51),
+            U_Ca_proxy = ((-0.3*U_Ca/1000)+7.52),
+            U_Ca_proxy_TJW = (((3.36*10^5)*U_Ca/1000)+0.978)) %>%
+  drop_na() %>%
+  ungroup(distance.um) %>%
+  group_by(Specimen) %>%
+  summarise(
+            Time = spline(Timepoint, U_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$x,
+            U_Ca_proxy_season_TJW = spline(Timepoint, U_Ca_proxy_TJW, xout = seq(min(Timepoint),2021, by = 1))$y,
+            U_Ca_proxy_season = spline(Timepoint, U_Ca_proxy, xout = seq(min(Timepoint),2021, by = 1))$y) %>% 
+  ggplot() +
+  geom_path(aes(Time, U_Ca_proxy_season, group = Specimen, col = Specimen), linetype = 3) +
+      geom_path(aes(Time, U_Ca_proxy_season_TJW, group = Specimen, col = Specimen)) +
+      geom_point(aes(x = 2018.6068, y =0.86), col = "orange") +
+      geom_point(aes(x = 2017.5466, y =0.68), col = "orange") +
+      geom_point(aes(x = 2016.5642, y =1.05), col = "orange") +
+      geom_point(aes(x = 2021.5849, y = 1.1), col = "orange") +
+      labs(y = expression("T"["[rec]"]*" (°C)"), x = "Timepoint (years)") +
+      geom_hline(yintercept = 1.1, linetype = 2) +
+      geom_hline(yintercept = 0.68, linetype = 2) +
+      geom_label(aes(y = 2.5, x = 1990, label = "Annual interpolation (spline)")) +
+      scale_x_continuous(limits = c(1960,2022), breaks = seq(1960,2020,5), sec.axis = sec_axis(~ -(. - 2021)*51, name = "Distance from coral wall (µm)")) +
+      scale_y_continuous(limits = c(0,10)) +
+      theme_classic()
+
+
+U_thermometry_plots <- U_thermometry_plot_uninterpolated + theme(axis.title.x.bottom = element_blank(), axis.title.y = element_blank()) +
+  U_thermometry_plot_seasonal_interpolation  + theme(axis.title.x = element_blank()) +
+  U_thermometry_plot_annual_interpolation + theme(axis.title.y = element_blank(), axis.title.x.top = element_blank()) +
+  plot_layout(nrow = 3, guides = "collect")
+
+# TREND SCRIPT
+#    ggpmisc::stat_poly_eq(data = data[which(data$Time >=2000),], method = "rlm", label.x = 0.1, label.y = c(0.95, 0.9,0.85,0.8),
+                        # aes(x = Time, y = U_Ca_proxy_season_TJW, col = Specimen,
+                        #     label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) 
+  
+## Saving files ####
+Thermometry_folder_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected_Thermometry"
+
+ggsave(
+  "Li_Mg_thermometry.tiff",
+  plot = `Li_Mg_thermometry_plots`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "Li_Mg_thermometry_constrained.tiff",
+  plot = `Li_Mg_thermometry_plots_constrained`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "Mg_thermometry.tiff",
+  plot = `Mg_thermometry_plots`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "Mg_thermometry_constrained.tiff",
+  plot = `Mg_thermometry_plots_constrained`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "S_thermometry.tiff",
+  plot = `S_thermometry_plots`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "Sr_thermometry.tiff",
+  plot = `Sr_thermometry_plots`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+ggsave(
+  "U_thermometry.tiff",
+  plot = `U_thermometry_plots`,
+  path = Thermometry_folder_path,
+  scale = 1,
+  width = 30,
+  height = 15,
+  units = "cm",
+  dpi = 300,
+)
+
+# Standard error table ####
+ggplot(Standard_errors[which(Standard_errors$Element == "Sr_Ca"),]) +
+  geom_point(aes(x = Sample, y = mean_value, col = Section), position = position_dodge2(width= 0.5)) +
+  geom_errorbar(aes(x = Sample, ymax = mean_value+coefficient_variation_av, ymin = mean_value-coefficient_variation_av, col = Section), position = position_dodge(width = 0.5))
+
+
+Standard_errors %>%
+  filter(Element %in% c("Li_Ca", "Mg_Ca", "S_Ca", "Sr_Ca", "U_Ca")) %>%
+  mutate(mean_value= ifelse(Element == "Mg_Ca" | Element == "S_Ca" | Element == "Sr_Ca", mean_value/1000, 
+                            ifelse(Element == "U_Ca", mean_value*1000, mean_value)),
+         standard_dev_2_av= ifelse(Element == "Mg_Ca" | Element == "S_Ca" | Element == "Sr_Ca", standard_dev_2_av/1000, 
+                            ifelse(Element == "U_Ca", standard_dev_2_av*1000, standard_dev_2_av)),
+         standard_error_2_av= ifelse(Element == "Mg_Ca" | Element == "S_Ca" | Element == "Sr_Ca", standard_error_2_av/1000, 
+                            ifelse(Element == "U_Ca", standard_error_2_av*1000, standard_error_2_av)),
+         max_value= ifelse(Element == "Mg_Ca" | Element == "S_Ca" | Element == "Sr_Ca", max_value/1000, 
+                            ifelse(Element == "U_Ca", max_value*1000, max_value)),
+         min_value= ifelse(Element == "Mg_Ca" | Element == "S_Ca" | Element == "Sr_Ca", min_value/1000, 
+                            ifelse(Element == "U_Ca", min_value*1000, min_value)),
+         ) %>%
+  write.csv("Table_averages_rasters.csv") %>%
+  ggplot() +
+  geom_point(aes(x = Sample, y = mean_value, col = Section), position = position_dodge2(width= 0.5)) +
+  geom_errorbar(aes(x = Sample, ymax = mean_value+standard_error_2_av, ymin = mean_value-standard_error_2_av, col = Section), position = position_dodge(width = 0.5)) +
+  facet_grid( ~ Element) +
+  theme_classic()
+
+# ASTROCHRON PACKAGE ####
+library(astrochron)
+
+for(a in 1:length(Ratios)) {
+  for(c in 1:length(Samples)) {
+    pattern_data <- c(paste0(Samples[c],"_"), paste0(Ratios[a],"_patterndata"))
+Sample_Pattern_Data <- grep(paste0(pattern_data, collapse = ".*"),names(.GlobalEnv),value=TRUE)
+Pattern_Data_list <-do.call("list",mget(Sample_Pattern_Data))
+Pattern_Data_list <- Pattern_Data_list[order(names(Pattern_Data_list))]
+Internode <- c(1,2,3)
+Pattern_Data_list <- mapply(cbind, Pattern_Data_list, "Internode"=Internode, SIMPLIFY=F)
+assign(paste0("Sample_",Samples[c],"_",Ratios[a], "_Pattern_Data_list"), Pattern_Data_list)
+  }
+}
+
+Trace_data <- data.frame(distance = -`Sample_23_1 1 thermometry_data`$distance.um,
+                         Sr_Ca = `Sample_23_1 1 thermometry_data`$Sr_Ca)
+
+Trace_data_2 <- data.frame(distance = -`Sample_23_1 2 thermometry_data`$distance.um,
+                         Sr_Ca = `Sample_23_1 2 thermometry_data`$Sr_Ca)
+
+Trace_data_3 <- data.frame(distance = -Sample_23_1_Ba_Ca_Pattern_Data_list[[3]]$distance.um,
+                         Li_Ca = Sample_23_1_Ba_Ca_Pattern_Data_list[[3]]$mean)
+dev.new()
+a <-  astrochron::linage(Trace_data, Trace_data_2, extrapolate = F, output =3)
+
+plot (a[[2]]$distance, -Sample_23_1_Ba_Ca_Pattern_Data_list[[2]]$distance.um)
+plot (a[[2]]$distance, a[[2]]$Ba_Ca)
+lines (-Sample_23_1_Ba_Ca_Pattern_Data_list[[1]]$distance.um, Sample_23_1_Ba_Ca_Pattern_Data_list[[1]]$mean, col="red")
+
+
+```
