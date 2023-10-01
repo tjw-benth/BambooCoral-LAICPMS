@@ -42,15 +42,15 @@ if (i %in% rownames(installed.packages()) == FALSE)
   }
 }
 
-plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim) {
+plot_a_list <- function(master_list_with_plots, no_of_rows, no_of_cols, ylim, xlim, guides) {
   if(missing(ylim) | missing(xlim)) {
     patchwork::wrap_plots(master_list_with_plots, 
                         nrow = no_of_rows, ncol = no_of_cols,
-                        guides = "collect")
+                        guides = guides)
   } else {
       patchwork::wrap_plots(master_list_with_plots, 
                         nrow = no_of_rows, ncol = no_of_cols,
-                        guides = "collect") &
+                        guides = guides) &
   ggplot2::lims(y = ylim, x = xlim)
   }
 }
@@ -94,8 +94,10 @@ Constants <- setNames(lapply(setNames, get),setNames)
 ```
 
 ```{r extraction & importation, echo = F, message=T}
-# all relevant files are csv
-ICPMS_csvfilelist <- list.files(path = "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Bamboo Corals 05May22", 
+# This chunk extracts all LAICPMS runs, quality checks, tags and merges into a list of dataframes ####
+## all relevant files are csv
+
+ICPMS_csvfilelist <- list.files(path = paste0(here::here("Bamboo Corals 05May22")), 
                              pattern = ".csv", 
                              full.names = T, 
                              include.dirs = F, #includes subdirectories
@@ -121,7 +123,7 @@ ICPMS_directories_tidy <- ICPMS_directories %>%
   row_to_names(row_number = 1) %>%
   clean_names() %>%
   slice(-c(23,54)) %>% #remove duplicated headings
-  select(-na) 
+  dplyr::select(-na) 
 
 ICPMS_directories_tidy <- ICPMS_directories_tidy %>%
   mutate(sampleID = paste("A", 1:nrow(ICPMS_directories_tidy), sep = ""), .before = acq_date_time)
@@ -137,6 +139,8 @@ for (x in 1:length(ICPMS_csvfiles)) {
   } else {next} 
 }
 
+rm(ICPMS_csvfiles)
+rm(ICPMS_directories)
 
 ICPMS_csvfiles_tidy[["NA"]] <- NULL
 ICPMS_csvfiles_tidy[["NA"]] <- NULL
@@ -150,8 +154,8 @@ Sample_list <- ICPMS_directories_tidy %>%
 write.csv(Sample_list, "Sample_list.csv")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 ```{r data processing, echo = F, message=T}
+# This chunk separates out the runs into standards and coral samples and processes the data (blank bracketing, analysis bracketing, outlier removal (standards only), standard deviation cut offs, blank corrections) ####
 # This will be different for each corals sample + standards
 # Cross-reference with the ICPMS_directories_tidy to extract the specific dataframes 
 Runs_612 <- ICPMS_csvfiles_tidy[c("A1", "A9", "A17", "A26", "A34", "A42", "A50", "A53", "A61", "A69", "A77", "A85", "A93", "A101")]
@@ -169,7 +173,8 @@ Runs_Sample_23_10_3 <- ICPMS_csvfiles_tidy[c("A72","A73","A74","A75","A76")]
 Runs_Sample_23_6_1 <- ICPMS_csvfiles_tidy[c("A80","A81","A82","A83","A84")]
 Runs_Sample_23_6_2 <- ICPMS_csvfiles_tidy[c("A88","A89","A90","A91","A92")]
 Runs_Sample_23_6_3 <- ICPMS_csvfiles_tidy[c("A96","A97","A98","A99","A100")]
-Signals_graph_folder <- "~/Library/CloudStorage/OneDrive-UniversityofSouthampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Element_Signals/"
+
+Signals_graph_folder <- paste0(here::here("Element_Signals"))
 
 # 612 standards code ####
 Analysis_612 <- list()
@@ -214,15 +219,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_612[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_612[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_612[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_612[[paste0(names(Runs_612[j]), "_Elementsignals")]] <- datapoints_graph
 
 #Blanks
@@ -251,7 +255,7 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
@@ -301,7 +305,7 @@ Analysis <- Runs_612[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-# want to reject "bad" data in blanks - use +/- 4sd limit
+# want to reject "bad" data in analysis - use +/- 4sd limit
 # determine means and s.d of each element
 m.Analysis <- Analysis %>%
   summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
@@ -312,7 +316,7 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
 for(x in 1:ncol(m.Analysis)) {
@@ -410,11 +414,10 @@ Li_Ca <- ggplot() +
   annotate("text", x = Inf, y = Inf, hjust = 1, vjust = 2, label = "Blank corrected", col = "red") +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_612[j]), col = "black")
 
-assign(paste0(names(Runs_612[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_612[[paste0(names(Runs_612[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_612[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
+
 Analysis_612[[paste0(names(Runs_612[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -449,11 +452,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_612[j]), "_Calculations"), Data_averages_V2)
+
 Calculations_612[[paste0(names(Runs_612[j]), "_Calculations")]] <- Data_averages_V2
 
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
+
 }
-plot_a_list(Elementdata_612, 7,2)
+plot_a_list(Elementdata_612, 7,2, guides = "collect")
 
 ggsave(
   "612_Element_Signals.tiff",
@@ -468,7 +475,7 @@ ggsave(
   bg = NULL
 )
 
-plot_a_list(Li_Ca_ratios_612, 7,2, ylim = c(0,.6), xlim = c(0,200))
+plot_a_list(Li_Ca_ratios_612, 7,2, ylim = c(0,.6), xlim = c(0,200), guides = "collect")
 
 # JCP standards code ####
 Analysis_JCP <- list()
@@ -514,15 +521,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_JCP[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_JCP[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_JCP[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_JCP[[paste0(names(Runs_JCP[j]), "_Elementsignals")]] <- datapoints_graph
 
 #Blanks
@@ -551,7 +557,7 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
 for(x in 1:ncol(m.Preblank)) {
@@ -600,7 +606,7 @@ Analysis <- Runs_JCP[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-# want to reject "bad" data in blanks - use +/- 4sd limit
+# want to reject "bad" data in analysis - use +/- 4sd limit
 # determine means and s.d of each element
 m.Analysis <- Analysis %>%
   summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
@@ -611,7 +617,7 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
 for(x in 1:ncol(m.Analysis)) {
@@ -709,11 +715,10 @@ Li_Ca <- ggplot() +
   annotate("text", x = Inf, y = Inf, hjust = 1, vjust = 2, label = "Blank corrected", col = "red") +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_JCP[j]), col = "black")
 
-assign(paste0(names(Runs_JCP[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_JCP[[paste0(names(Runs_JCP[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_JCP[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
+
 Analysis_JCP[[paste0(names(Runs_JCP[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -751,10 +756,14 @@ Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
 assign(paste0(names(Runs_JCP[j]), "_Calculations"), Data_averages_V2)
 Calculations_JCP[[paste0(names(Runs_JCP[j]), "_Calculations")]] <- Data_averages_V2
 
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
+
 }
 
 
-plot_a_list(Elementdata_JCP, 7,2)
+plot_a_list(Elementdata_JCP, 7,2, guides = "collect")
 
 ggsave(
   "JCP_Element_Signals.tiff",
@@ -769,7 +778,7 @@ ggsave(
   bg = NULL
 )
 
-plot_a_list(Li_Ca_ratios_JCP, 7,2, ylim = c(0,.01), xlim = c(0,200))
+plot_a_list(Li_Ca_ratios_JCP, 7,2, ylim = c(0,.01), xlim = c(0,200), guides = "collect")
 
 # DSC standards code ####
 Analysis_DSC <- list()
@@ -814,15 +823,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_DSC[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_DSC[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_DSC[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_DSC[[paste0(names(Runs_DSC[j]), "_Elementsignals")]] <- datapoints_graph
 
 #Blanks
@@ -851,7 +859,7 @@ sd.Postblank <- Postblank %>%
 no.outliers.Preblank <- matrix(NA, ncol = ncol(m.Preblank), nrow = nrow(Preblank))
 no.outliers.Postblank <- matrix(NA, ncol = ncol(m.Postblank), nrow = nrow(Postblank))
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
 for(x in 1:ncol(m.Preblank)) {
@@ -900,7 +908,7 @@ Analysis <- Runs_DSC[[j]] %>%
   filter(`Time [Sec]` >= Pre_blank_cut_off & `Time [Sec]` <= Post_blank_cut_off) %>% 
   mutate(across(all_of(c(2:11)), ~ ., .names = "{col}_analysis"))
 
-# want to reject "bad" data in blanks - use +/- 4sd limit
+# want to reject "bad" data in analysis - use +/- 4sd limit
 # determine means and s.d of each element
 m.Analysis <- Analysis %>%
   summarise(across(all_of(c(12:21)), ~ mean(., na.rm = T), .names = "{col}_mean"))
@@ -911,7 +919,7 @@ sd.Analysis <- Analysis %>%
 no.outliers.Analysis <- matrix(NA, ncol = ncol(m.Analysis), nrow = nrow(Analysis))
 
 
-# ifelse statement to evaulate each data point for each element against specific s.d. of the mean for that element
+# ifelse statement to evaluate each data point for each element against specific s.d. of the mean for that element
 Elements <- c("Li7", "B11", "Mg24", "P31", "S34", "Ca43", "Mn55", "Sr86", "Ba137", "U238")
 
 for(x in 1:ncol(m.Analysis)) {
@@ -1010,11 +1018,10 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_DSC[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_DSC[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_DSC[[paste0(names(Runs_DSC[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_DSC[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
+
 Analysis_DSC[[paste0(names(Runs_DSC[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -1049,12 +1056,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_DSC[j]), "_Calculations"), Data_averages_V2)
 Calculations_DSC[[paste0(names(Runs_DSC[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_DSC, 6,2)
+plot_a_list(Elementdata_DSC, 6,2, guides = "collect")
 
 ggsave(
   "DSC_Element_Signals.tiff",
@@ -1069,7 +1079,7 @@ ggsave(
   bg = NULL
 )
 
-plot_a_list(Li_Ca_ratios_DSC, 7,2, ylim = c(0,.005), xlim = c(0,200))
+plot_a_list(Li_Ca_ratios_DSC, 7,2, ylim = c(0,.005), xlim = c(0,200), guides = "collect")
 
 # Samples code - first sample (23-16_1) ####
 Analysis_Sample_23_16_1 <- list()
@@ -1114,15 +1124,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_16_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 
@@ -1211,11 +1220,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_1[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_16_1[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_16_1[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -1250,12 +1257,16 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_16_1[j]), "_Calculations"), Data_averages_V2)
+
 Calculations_Sample_23_16_1[[paste0(names(Runs_Sample_23_16_1[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_16_1, 2,3)
+plot_a_list(Elementdata_Sample_23_16_1, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_16_1_Element_Signals.tiff",
@@ -1313,15 +1324,15 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_16_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals"), datapoints_graph)
+
 Elementdata_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_16_2[[j]] %>%
@@ -1409,11 +1420,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_2[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_16_2[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_16_2[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -1448,12 +1457,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_16_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_2[[paste0(names(Runs_Sample_23_16_2[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_16_2, 2,3)
+plot_a_list(Elementdata_Sample_23_16_2, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_16_2_Element_Signals.tiff",
@@ -1511,15 +1523,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_16_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_16_3[[j]] %>%
@@ -1538,14 +1549,14 @@ Analysis <- Runs_Sample_23_16_3[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1616,11 +1627,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_16_3[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -1655,12 +1664,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_16_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_16_3[[paste0(names(Runs_Sample_23_16_3[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_16_3, 2,3)
+plot_a_list(Elementdata_Sample_23_16_3, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_16_3_Element_Signals.tiff",
@@ -1720,15 +1732,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_1_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_1[[j]] %>%
@@ -1747,14 +1758,14 @@ Analysis <- Runs_Sample_23_1_1[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -1825,11 +1836,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_1[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -1864,12 +1873,11 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_1_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_1[[paste0(names(Runs_Sample_23_1_1[j]), "_Calculations")]] <- Data_averages_V2
 
 }
 
-plot_a_list(Elementdata_Sample_23_1_1, 2,3)
+plot_a_list(Elementdata_Sample_23_1_1, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_1_1_Element_Signals.tiff",
@@ -1927,15 +1935,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_1_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_2[[j]] %>%
@@ -1954,14 +1961,14 @@ Analysis <- Runs_Sample_23_1_2[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2032,11 +2039,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_2[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -2071,12 +2076,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_1_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_2[[paste0(names(Runs_Sample_23_1_2[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_1_2, 2,3)
+plot_a_list(Elementdata_Sample_23_1_2, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_1_2_Element_Signals.tiff",
@@ -2134,15 +2142,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_1_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_1_3[[j]] %>%
@@ -2161,14 +2168,14 @@ Analysis <- Runs_Sample_23_1_3[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2239,11 +2246,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_1_3[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -2278,12 +2283,11 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_1_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_1_3[[paste0(names(Runs_Sample_23_1_3[j]), "_Calculations")]] <- Data_averages_V2
 
 }
 
-plot_a_list(Elementdata_Sample_23_1_3, 2,3)
+plot_a_list(Elementdata_Sample_23_1_3, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_1_3_Element_Signals.tiff",
@@ -2343,16 +2347,16 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_10_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Elementsignals")]] <- datapoints_graph
+
 Preblank <- Runs_Sample_23_10_1[[j]] %>%
   filter(`Time [Sec]` <= 29) %>%
   mutate( across(all_of(c(2:11)), ~ ., .names = "{col}_preblank"))
@@ -2369,14 +2373,14 @@ Analysis <- Runs_Sample_23_10_1[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2447,11 +2451,10 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_1[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
+
 Analysis_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -2486,12 +2489,16 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_10_1[j]), "_Calculations"), Data_averages_V2)
+
 Calculations_Sample_23_10_1[[paste0(names(Runs_Sample_23_10_1[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_10_1, 2,3)
+plot_a_list(Elementdata_Sample_23_10_1, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_10_1_Element_Signals.tiff",
@@ -2549,15 +2556,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_10_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_2[[j]] %>%
@@ -2576,14 +2582,14 @@ Analysis <- Runs_Sample_23_10_2[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2654,11 +2660,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_2[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -2693,12 +2697,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_10_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_10_2[[paste0(names(Runs_Sample_23_10_2[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_10_2, 2,3)
+plot_a_list(Elementdata_Sample_23_10_2, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_10_2_Element_Signals.tiff",
@@ -2756,15 +2763,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_10_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_10_3[[j]] %>%
@@ -2783,14 +2789,14 @@ Analysis <- Runs_Sample_23_10_3[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -2861,11 +2867,11 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_10_3[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Li/Ca ratio"), Li_Ca)
+
 Li_Ca_ratios_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
+
 Analysis_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -2900,12 +2906,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_10_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_10_3[[paste0(names(Runs_Sample_23_10_3[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_10_3, 2,3)
+plot_a_list(Elementdata_Sample_23_10_3, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_10_3_Element_Signals.tiff",
@@ -2965,15 +2974,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_6_1[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_1[[j]] %>%
@@ -2992,14 +3000,14 @@ Analysis <- Runs_Sample_23_6_1[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -3070,11 +3078,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_1[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -3109,12 +3115,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_6_1[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_6_1[[paste0(names(Runs_Sample_23_6_1[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_6_1, 2,3)
+plot_a_list(Elementdata_Sample_23_6_1, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_6_1_Element_Signals.tiff",
@@ -3172,15 +3181,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_6_2[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_2[[j]] %>%
@@ -3199,14 +3207,14 @@ Analysis <- Runs_Sample_23_6_2[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -3277,11 +3285,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_2[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -3316,12 +3322,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_6_2[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_6_2[[paste0(names(Runs_Sample_23_6_2[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_6_2, 2,3)
+plot_a_list(Elementdata_Sample_23_6_2, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_6_2_Element_Signals.tiff",
@@ -3379,15 +3388,14 @@ datapoints_graph <- datapoints +
   geom_vline(xintercept = max(Runs_Sample_23_6_3[[j]]$`Time [Sec]`, na.rm = T)-45) + #postblank cut off
   geom_vline(xintercept = Pre_blank_cut_off, linetype = 2) + # start of analysis
   geom_vline(xintercept = Post_blank_cut_off-2, linetype = 2) + # end of analysis
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-                labels = trans_format("log10", math_format(10^.x))) +
+  scale_y_log10(breaks = scales::trans_breaks("log10", function(x) 10^x),
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
   annotation_logticks(sides = "l") +
   annotate("text", x = 100, y = 100, hjust = 1, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black") +
   ylab("Signal") +
   scale_fill_discrete(name = "Element") +
   theme_classic()
 
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals"), datapoints_graph)
 Elementdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Elementsignals")]] <- datapoints_graph
 
 Preblank <- Runs_Sample_23_6_3[[j]] %>%
@@ -3406,14 +3414,14 @@ Analysis <- Runs_Sample_23_6_3[[j]] %>%
 
 Analysis_full <- full_join(Allblanks, Analysis)
 
-Li_datapoints <- ggplot() +
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
-  geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
-  annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black")
-
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata"), Li_datapoints)
-Lithiumdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata")]] <- Li_datapoints
+# Li_datapoints <- ggplot() +
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7)) + 
+#   geom_point(aes_(Analysis_full$`Time [Sec]`,Analysis_full$Li7_analysis), col = "red") +
+#   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = "Analysis", col = "red") +
+#   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black")
+# 
+# assign(paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata"), Li_datapoints)
+# Lithiumdata_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Lithiumdata")]] <- Li_datapoints
 
 Data_averages <- Analysis_full %>%
   summarise(across(all_of(c(12:41)), 
@@ -3484,11 +3492,9 @@ Li_Ca <- ggplot() +
   annotate("text", x = -Inf, y = Inf, hjust = -.25, vjust = 2, label = names(Runs_Sample_23_6_3[j]), col = "black") +
   lims(y =c (0,0.0005))
 
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Li/Ca ratio"), Li_Ca)
 Li_Ca_ratios_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Li/Ca ratio")]] <- Li_Ca
 
 Analysis_full_blankcorrections_ratios <- full_join(Analysis_full, Blankcorrections_ratios)
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Analysis table"), Analysis_full_blankcorrections_ratios)
 Analysis_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Analysis table")]] <- Analysis_full_blankcorrections_ratios
 
 Data_averages <- Analysis_full_blankcorrections_ratios %>%
@@ -3523,12 +3529,15 @@ cutoffs_table <- cutoffs_table %>%
   rotate_df(rn = "Calculation", cn = T)
 
 Data_averages_V2 <- full_join(cutoffs_table, Data_averages)
-assign(paste0(names(Runs_Sample_23_6_3[j]), "_Calculations"), Data_averages_V2)
 Calculations_Sample_23_6_3[[paste0(names(Runs_Sample_23_6_3[j]), "_Calculations")]] <- Data_averages_V2
+
+rm(Allblanks, Analysis, Analysis_full, Analysis_V2, Analysis_full_blankcorrections_ratios, Blankcorrectios, Blankcorrections_ratios, Data_averages, Li_Ca, m.Analysis, m.Postblank, m.Preblank, meancutoffs, meancutoffs_data, 
+   no.outliers.Analysis, no.outliers.Postblank, no.outliers.Preblank, o, Postblank, Post_blank_cut_off, Postblank_V2,
+   Pre_blank_cut_off, Preblank, Preblank_V2, sd.Analysis, sd.Postblank, sd.Preblank)
 
 }
 
-plot_a_list(Elementdata_Sample_23_6_3, 2,3)
+plot_a_list(Elementdata_Sample_23_6_3, 2,3, guides = "collect")
 
 ggsave(
   "Sample_23_6_3_Element_Signals.tiff",
@@ -3562,7 +3571,7 @@ JCP_Corrected_Sample_23_6_1 <- list()
 JCP_Corrected_Sample_23_6_2 <- list()
 JCP_Corrected_Sample_23_6_3 <- list()
 
-JCP_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/JCP_Corrected/"
+JCP_Corrected_path <- paste0(here::here("Data_R_processed", "JCP_Corrected"), "/")
 
 # remember need to keep all ratios to same unit (µmol/mol)
 # Mg/Ca JCP constant is in mmol/mol so needs to be multiplied by 1000
@@ -3586,7 +3595,6 @@ for (i in 1:length(Analysis_DSC)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[i]]$U_Ca[1],Calculations_JCP[[i+1]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_DSC[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_DSC[[paste0(names(Analysis_DSC[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 1 & 2 ####
@@ -3605,7 +3613,6 @@ for (i in 1:length(Analysis_Sample_23_16_1)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[1]]$U_Ca[1],Calculations_JCP[[2]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_16_1[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_16_1[[paste0(names(Analysis_Sample_23_16_1[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 2 & 3 ####
@@ -3624,7 +3631,6 @@ for (i in 1:length(Analysis_Sample_23_16_2)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[2]]$U_Ca[1],Calculations_JCP[[3]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_16_2[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_16_2[[paste0(names(Analysis_Sample_23_16_2[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 3 & 4 ####
@@ -3643,7 +3649,6 @@ for (i in 1:length(Analysis_Sample_23_16_3)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[3]]$U_Ca[1],Calculations_JCP[[4]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_16_3[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_16_3[[paste0(names(Analysis_Sample_23_16_3[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 
@@ -3651,6 +3656,8 @@ JCP_Corrected_Sample_23_16 <- list()
 JCP_Corrected_Sample_23_16[[paste0("JCP_Corrected_Sample_23_16_1")]] <- JCP_Corrected_Sample_23_16_1
 JCP_Corrected_Sample_23_16[[paste0("JCP_Corrected_Sample_23_16_2")]] <- JCP_Corrected_Sample_23_16_2
 JCP_Corrected_Sample_23_16[[paste0("JCP_Corrected_Sample_23_16_3")]] <- JCP_Corrected_Sample_23_16_3
+
+rm(JCP_Corrected_Sample_23_16_1, JCP_Corrected_Sample_23_16_2, JCP_Corrected_Sample_23_16_3)
 
 # JCP 4 & 5 ####
 for (i in 1:length(Analysis_Sample_23_1_1)) {
@@ -3668,7 +3675,6 @@ for (i in 1:length(Analysis_Sample_23_1_1)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[4]]$U_Ca[1],Calculations_JCP[[5]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_1_1[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_1_1[[paste0(names(Analysis_Sample_23_1_1[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 5 & 6 ####
@@ -3687,7 +3693,6 @@ for (i in 1:length(Analysis_Sample_23_1_2)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[5]]$U_Ca[1],Calculations_JCP[[6]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_1_2[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_1_2[[paste0(names(Analysis_Sample_23_1_2[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 6 & 7 ####
@@ -3706,7 +3711,6 @@ for (i in 1:length(Analysis_Sample_23_1_3)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[6]]$U_Ca[1],Calculations_JCP[[7]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_1_3[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_1_3[[paste0(names(Analysis_Sample_23_1_3[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 
@@ -3714,6 +3718,8 @@ JCP_Corrected_Sample_23_1 <- list()
 JCP_Corrected_Sample_23_1[[paste0("JCP_Corrected_Sample_23_1_1")]] <- JCP_Corrected_Sample_23_1_1
 JCP_Corrected_Sample_23_1[[paste0("JCP_Corrected_Sample_23_1_2")]] <- JCP_Corrected_Sample_23_1_2
 JCP_Corrected_Sample_23_1[[paste0("JCP_Corrected_Sample_23_1_3")]] <- JCP_Corrected_Sample_23_1_3
+
+rm(JCP_Corrected_Sample_23_1_1, JCP_Corrected_Sample_23_1_2, JCP_Corrected_Sample_23_1_3)
 
 # JCP 8 & 9 - as new day of ablation so different standards ####
 for (i in 1:length(Analysis_Sample_23_10_1)) {
@@ -3731,7 +3737,6 @@ for (i in 1:length(Analysis_Sample_23_10_1)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[8]]$U_Ca[1],Calculations_JCP[[9]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_10_1[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_10_1[[paste0(names(Analysis_Sample_23_10_1[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 9 & 10 ####
@@ -3750,7 +3755,6 @@ for (i in 1:length(Analysis_Sample_23_10_2)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[9]]$U_Ca[1],Calculations_JCP[[10]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_10_2[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_10_2[[paste0(names(Analysis_Sample_23_10_2[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 10 & 11 ####
@@ -3769,7 +3773,6 @@ for (i in 1:length(Analysis_Sample_23_10_3)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[10]]$U_Ca[1],Calculations_JCP[[11]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_10_3[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_10_3[[paste0(names(Analysis_Sample_23_10_3[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 
@@ -3777,6 +3780,8 @@ JCP_Corrected_Sample_23_10 <- list()
 JCP_Corrected_Sample_23_10[[paste0("JCP_Corrected_Sample_23_10_1")]] <- JCP_Corrected_Sample_23_10_1
 JCP_Corrected_Sample_23_10[[paste0("JCP_Corrected_Sample_23_10_2")]] <- JCP_Corrected_Sample_23_10_2
 JCP_Corrected_Sample_23_10[[paste0("JCP_Corrected_Sample_23_10_3")]] <- JCP_Corrected_Sample_23_10_3
+
+rm(JCP_Corrected_Sample_23_10_1, JCP_Corrected_Sample_23_10_2, JCP_Corrected_Sample_23_10_3)
 
 # JCP 11 & 12 ####
 for (i in 1:length(Analysis_Sample_23_6_1)) {
@@ -3794,7 +3799,6 @@ for (i in 1:length(Analysis_Sample_23_6_1)) {
     U_Ca_MB_corrected = (U_Ca/(mean(c(Calculations_JCP[[11]]$U_Ca[1],Calculations_JCP[[12]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_6_1[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_6_1[[paste0(names(Analysis_Sample_23_6_1[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 12 & 13 ####
@@ -3813,7 +3817,6 @@ for (i in 1:length(Analysis_Sample_23_6_2)) {
     (U_Ca_MB_corrected = U_Ca/(mean(c(Calculations_JCP[[12]]$U_Ca[1],Calculations_JCP[[13]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_6_2[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_6_2[[paste0(names(Analysis_Sample_23_6_2[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 # JCP 13 & 14 ####
@@ -3832,7 +3835,6 @@ for (i in 1:length(Analysis_Sample_23_6_3)) {
     (U_Ca_MB_corrected = U_Ca/(mean(c(Calculations_JCP[[13]]$U_Ca[1],Calculations_JCP[[14]]$U_Ca[1]))/Constants$JCP$U_Ca[1]))/1000
     )
   
-assign(paste0(names(Analysis_Sample_23_6_3[i]), "_JCP_corrected"), JCP_corrected_ratios)
 JCP_Corrected_Sample_23_6_3[[paste0(names(Analysis_Sample_23_6_3[i]), "_JCP_corrected")]] <- JCP_corrected_ratios
 }
 
@@ -3841,11 +3843,15 @@ JCP_Corrected_Sample_23_6[[paste0("JCP_Corrected_Sample_23_6_1")]] <- JCP_Correc
 JCP_Corrected_Sample_23_6[[paste0("JCP_Corrected_Sample_23_6_2")]] <- JCP_Corrected_Sample_23_6_2
 JCP_Corrected_Sample_23_6[[paste0("JCP_Corrected_Sample_23_6_3")]] <- JCP_Corrected_Sample_23_6_3
 
+rm(JCP_Corrected_Sample_23_6_1, JCP_Corrected_Sample_23_6_2, JCP_Corrected_Sample_23_6_3)
+
 JCP_Corrected_Samples <- list()
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_16")]] <- JCP_Corrected_Sample_23_16
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_1")]] <- JCP_Corrected_Sample_23_1
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_10")]] <- JCP_Corrected_Sample_23_10
 JCP_Corrected_Samples[[paste0("JCP_Corrected_Sample_23_6")]] <- JCP_Corrected_Sample_23_6
+
+rm(JCP_Corrected_Sample_23_16, JCP_Corrected_Sample_23_1, JCP_Corrected_Sample_23_10, JCP_Corrected_Sample_23_6)
 
 for (i in 1:length(JCP_Corrected_Samples)) {
   for (j in 1:length(JCP_Corrected_Samples[[i]])) {
@@ -3875,7 +3881,7 @@ NIST612_Corrected_Sample_23_6_1 <- list()
 NIST612_Corrected_Sample_23_6_2 <- list()
 NIST612_Corrected_Sample_23_6_3 <- list()
 
-NIST612_Corrected_path <- "~/OneDrive - University of Southampton/PhD, INSPIRE DTP/Countries_Chapters/UK [Soton]/Chpt4 Bamboo Coral Analysis/LAICPMS/Data_R_processed/NIST612_Corrected/"
+NIST612_Corrected_path <- paste0(here::here("Data_R_processed", "NIST612_Corrected"), "/")
 
 # need to change the 612 for each DSC run (i & i +1) #### 
 for (i in 1:length(Analysis_DSC)) {
@@ -3907,7 +3913,6 @@ for (i in 1:length(Analysis_DSC)) {
     )
   
   
-assign(paste0(names(Analysis_DSC[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_DSC[[paste0(names(Analysis_DSC[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 1 & 2 ####
@@ -3939,7 +3944,6 @@ for (i in 1:length(Analysis_Sample_23_16_1)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_16_1[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_16_1[[paste0(names(Analysis_Sample_23_16_1[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 2 & 3 ####
@@ -3971,7 +3975,6 @@ for (i in 1:length(Analysis_Sample_23_16_2)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_16_2[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_16_2[[paste0(names(Analysis_Sample_23_16_2[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 3 & 4 ####
@@ -4003,7 +4006,6 @@ for (i in 1:length(Analysis_Sample_23_16_3)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_16_3[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_16_3[[paste0(names(Analysis_Sample_23_16_3[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 
@@ -4011,6 +4013,8 @@ NIST612_Corrected_Sample_23_16 <- list()
 NIST612_Corrected_Sample_23_16[[paste0("NIST612_Corrected_Sample_23_16_1")]] <- NIST612_Corrected_Sample_23_16_1
 NIST612_Corrected_Sample_23_16[[paste0("NIST612_Corrected_Sample_23_16_2")]] <- NIST612_Corrected_Sample_23_16_2
 NIST612_Corrected_Sample_23_16[[paste0("NIST612_Corrected_Sample_23_16_3")]] <- NIST612_Corrected_Sample_23_16_3
+
+rm(NIST612_Corrected_Sample_23_16_1, NIST612_Corrected_Sample_23_16_2, NIST612_Corrected_Sample_23_16_3)
 
 # 612 4 & 5 ####
 for (i in 1:length(Analysis_Sample_23_1_1)) {
@@ -4041,7 +4045,6 @@ for (i in 1:length(Analysis_Sample_23_1_1)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_1_1[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_1_1[[paste0(names(Analysis_Sample_23_1_1[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 5 & 6 ####
@@ -4073,7 +4076,6 @@ for (i in 1:length(Analysis_Sample_23_1_2)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_1_2[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_1_2[[paste0(names(Analysis_Sample_23_1_2[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 6 & 7 ####
@@ -4105,7 +4107,6 @@ for (i in 1:length(Analysis_Sample_23_1_3)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_1_3[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_1_3[[paste0(names(Analysis_Sample_23_1_3[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 
@@ -4113,6 +4114,8 @@ NIST612_Corrected_Sample_23_1 <- list()
 NIST612_Corrected_Sample_23_1[[paste0("NIST612_Corrected_Sample_23_1_1")]] <- NIST612_Corrected_Sample_23_1_1
 NIST612_Corrected_Sample_23_1[[paste0("NIST612_Corrected_Sample_23_1_2")]] <- NIST612_Corrected_Sample_23_1_2
 NIST612_Corrected_Sample_23_1[[paste0("NIST612_Corrected_Sample_23_1_3")]] <- NIST612_Corrected_Sample_23_1_3
+
+rm(NIST612_Corrected_Sample_23_1_1, NIST612_Corrected_Sample_23_1_2, NIST612_Corrected_Sample_23_1_3)
 
 # 612 8 & 9 - as new day of ablation so different standards ####
 for (i in 1:length(Analysis_Sample_23_10_1)) {
@@ -4143,7 +4146,6 @@ for (i in 1:length(Analysis_Sample_23_10_1)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_10_1[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_10_1[[paste0(names(Analysis_Sample_23_10_1[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 9 & 10 ####
@@ -4175,7 +4177,6 @@ for (i in 1:length(Analysis_Sample_23_10_2)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_10_2[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_10_2[[paste0(names(Analysis_Sample_23_10_2[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 10 & 11 ####
@@ -4207,7 +4208,6 @@ for (i in 1:length(Analysis_Sample_23_10_3)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_10_3[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_10_3[[paste0(names(Analysis_Sample_23_10_3[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 
@@ -4215,6 +4215,8 @@ NIST612_Corrected_Sample_23_10 <- list()
 NIST612_Corrected_Sample_23_10[[paste0("NIST612_Corrected_Sample_23_10_1")]] <- NIST612_Corrected_Sample_23_10_1
 NIST612_Corrected_Sample_23_10[[paste0("NIST612_Corrected_Sample_23_10_2")]] <- NIST612_Corrected_Sample_23_10_2
 NIST612_Corrected_Sample_23_10[[paste0("NIST612_Corrected_Sample_23_10_3")]] <- NIST612_Corrected_Sample_23_10_3
+
+rm(NIST612_Corrected_Sample_23_10_1, NIST612_Corrected_Sample_23_10_2, NIST612_Corrected_Sample_23_10_3)
 
 # 612 11 & 12 ####
 for (i in 1:length(Analysis_Sample_23_6_1)) {
@@ -4245,7 +4247,6 @@ for (i in 1:length(Analysis_Sample_23_6_1)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_6_1[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_6_1[[paste0(names(Analysis_Sample_23_6_1[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 12 & 13 ####
@@ -4277,7 +4278,6 @@ for (i in 1:length(Analysis_Sample_23_6_2)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_6_2[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_6_2[[paste0(names(Analysis_Sample_23_6_2[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 # 612 13 & 14 ####
@@ -4309,7 +4309,6 @@ for (i in 1:length(Analysis_Sample_23_6_3)) {
       U_Ca_umol_mol = U_Ca_NIST612_corrected /(Constants$Element_constants$Mass[14]/Constants$Element_constants$Mass[6]/Constants$Conversions$Value[2])
     )
     
-assign(paste0(names(Analysis_Sample_23_6_3[i]), "_NIST612_Corrected"), NIST612_corrected_ratios)
 NIST612_Corrected_Sample_23_6_3[[paste0(names(Analysis_Sample_23_6_3[i]), "_NIST612_Corrected")]] <- NIST612_corrected_ratios
 }
 
@@ -4318,15 +4317,20 @@ NIST612_Corrected_Sample_23_6[[paste0("NIST612_Corrected_Sample_23_6_1")]] <- NI
 NIST612_Corrected_Sample_23_6[[paste0("NIST612_Corrected_Sample_23_6_2")]] <- NIST612_Corrected_Sample_23_6_2
 NIST612_Corrected_Sample_23_6[[paste0("NIST612_Corrected_Sample_23_6_3")]] <- NIST612_Corrected_Sample_23_6_3
 
+rm(NIST612_Corrected_Sample_23_6_1, NIST612_Corrected_Sample_23_6_2, NIST612_Corrected_Sample_23_6_3)
+
 NIST612_Corrected_Samples <- list()
 NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_16")]] <- NIST612_Corrected_Sample_23_16
 NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_1")]] <- NIST612_Corrected_Sample_23_1
 NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_10")]] <- NIST612_Corrected_Sample_23_10
 NIST612_Corrected_Samples[[paste0("NIST612_Corrected_Sample_23_6")]] <- NIST612_Corrected_Sample_23_6
 
+rm(NIST612_Corrected_Sample_23_16, NIST612_Corrected_Sample_23_1, NIST612_Corrected_Sample_23_10, NIST612_Corrected_Sample_23_6)
+
 i <-1
 j <- 1
 x <- 1
+
 for (i in 1:length(NIST612_Corrected_Samples)) {
   for (j in 1:length(NIST612_Corrected_Samples[[i]])) {
     for (x in 1:length(NIST612_Corrected_Samples[[i]][[j]])) {
@@ -4398,7 +4402,6 @@ NIST612_corrected_ratios <- NIST612_corrected_ratios %>%
       U_Ca_umol_mol_2SE = U_Ca_umol_mol/100*(U_Ca_NIST612_corrected_2SE/U_Ca_NIST612_corrected*100),
     )
 
-assign(paste0(names(Calculations_JCP[i]), "_NIST612_Corrected_Means"), NIST612_corrected_ratios)
 NIST612_Corrected_JCP[[paste0(names(Calculations_JCP[i]), "_NIST612_Corrected_Means")]] <- NIST612_corrected_ratios
 }
 
@@ -4524,7 +4527,6 @@ NIST612_corrected_ratios <- NIST612_corrected_ratios %>%
       U_Ca_umol_mol_2SE = U_Ca_umol_mol/100*(U_Ca_NIST612_corrected_2SE/U_Ca_NIST612_corrected*100),
     )
 
-assign(paste0(names(Calculations_DSC[i]), "_NIST612_Corrected_Means"), NIST612_corrected_ratios)
 NIST612_Corrected_DSC_Means[[paste0(names(Calculations_DSC[i]), "_NIST612_Corrected_Means")]] <- NIST612_corrected_ratios
 }
 
@@ -4652,7 +4654,6 @@ JCP_corrected_ratios <- JCP_corrected_ratios %>%
       U_Ca_umol_mol_2SE = (U_Ca_umol_mol/100*(U_Ca_JCP_corrected_2SE/U_Ca_JCP_corrected*100))/1000
     )
 
-assign(paste0(names(Calculations_DSC[i]), "_JCP_Corrected_Means"), JCP_corrected_ratios)
 JCP_Corrected_DSC_Means[[paste0(names(Calculations_DSC[i]), "_JCP_Corrected_Means")]] <- JCP_corrected_ratios
 }
 
