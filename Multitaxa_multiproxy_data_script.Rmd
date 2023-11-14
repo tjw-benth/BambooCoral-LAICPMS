@@ -1,0 +1,620 @@
+---
+title: "Multitaxa_multiproxy_data_script"
+author: "Thomas J Williams"
+date: "2023-02-14"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r packages, include=FALSE}
+library(tidyverse)
+library(gginnards)
+library(lmodel2)
+```
+
+# Data extraction
+
+```{r data}
+
+Proxy_data <- read.csv(header=T, na.strings=c("","NA"), file.choose())
+Barium_data <- read.csv(header=T, na.strings=c("","NA"), check.names = F, file.choose())
+View(Proxy_data)
+
+unique(Proxy_data$Publication)
+mysamples <- Proxy_data[which(Proxy_data$Taxon_full == "Keratoisis sp."),]
+mysamples$shape <- as.factor(c(rep(21,3), rep(22,3), rep(23,3), rep(24,3)))
+mysamples$fill <- c(rep(c("#FE6100","#785EF0", "#FFB000"),4))
+mysamples$size = as.factor((c(rep(c(3,6,9),4))))
+
+Proxy_data %>%
+filter(!is.na(Mg.Ca_mmol.mol) & !is.na(Temperature_degreesC) & Minerology == "High Mg calcite") %>% 
+  select(Publication) %>%
+  unique() %>% View()
+```
+
+
+```{r shapes and regression analyses, echo=FALSE}
+
+shapes <- c("Octocoral" = 21,
+            "Coralline Algae" = 22,
+            "Azooxanthellate" = 23,
+            "Azooxanthellate (Stylasterid)" = 24,
+            "Foram" = 3,
+            "Zooxanthellate" = 4)
+
+Ratios <- c("Mg.Ca_mmol.mol", "Sr.Ca_mmol.mol","Sr.U_mmol.mol","U.Ca_mmol.mol")
+Minerologies <- c("High Mg calcite", "Aragonite")
+i <- "Mg_Ca"
+j <- "High Mg calcite"
+
+All_taxa_regressions <- data.frame(Relationship = as.character(),
+                          Mineralogy = as.character(),
+                          Taxon_group = as.character(),
+                          Source = as.character(),
+                          n = as.numeric(),
+                          r = as.numeric(),
+                          rsq = as.numeric(),
+                          Regression_type = as.character(),
+                          p = as.numeric(),
+                          Gradient = as.numeric(),
+                          Gradient_2SD = as.numeric(),
+                          Intercept = as.numeric(),
+                          Intercept_2SD = as.numeric())
+
+for (i in Ratios) {
+  for (j in Minerologies) {
+    T_formula <- as.formula(paste0("Temperature_degreesC ~ ",i))
+    lmodel <- lmodel2(T_formula, data = Proxy_data[which(Proxy_data$Minerology == j & Proxy_data$Taxon_Type != "Coralline Algae"),], "interval", "interval", 999)
+    
+    OLS_intercept <- lmodel$regression.results[1,2]
+    OLS_slope <- lmodel$regression.results[1,3]
+    OLS_p <- lmodel$regression.results[1,5]
+    RMA_intercept <- lmodel$regression.results[4,2]
+    RMA_slope <- lmodel$regression.results[4,3]
+    RMA_p <- lmodel$regression.results[4,5]
+    
+    lmodel_n <- lmodel$n
+    lmodel_r <- lmodel$r
+    lmodel_rsq <- lmodel$rsquare
+    OLS_intercept_2SD <- OLS_intercept - lmodel$confidence.intervals[1,2]
+    OLS_slope_2SD <- OLS_slope - lmodel$confidence.intervals[1,4]
+    RMA_intercept_2SD <- RMA_intercept - lmodel$confidence.intervals[4,2]
+    RMA_slope_2SD <- RMA_slope - lmodel$confidence.intervals[4,4]
+    
+    All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = j,
+                          Taxon_group = "All_taxa",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "OLS",
+                          p = OLS_p,
+                          Gradient = OLS_slope,
+                          Gradient_2SD = OLS_slope_2SD,
+                          Intercept = OLS_intercept,
+                          Intercept_2SD = OLS_intercept_2SD)
+    
+      All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = j,
+                          Taxon_group = "All_taxa",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "RMA",
+                          p = RMA_p,
+                          Gradient = RMA_slope,
+                          Gradient_2SD = RMA_slope_2SD,
+                          Intercept = RMA_intercept,
+                          Intercept_2SD = RMA_intercept_2SD)
+  }
+}
+
+# Add Octocorals to this
+
+for (i in Ratios) {
+    T_formula <- as.formula(paste0("Temperature_degreesC ~ ",i))
+    lmodel <- lmodel2(T_formula, data = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),], "interval", "interval", 999)
+    
+    OLS_intercept <- lmodel$regression.results[1,2]
+    OLS_slope <- lmodel$regression.results[1,3]
+    OLS_p <- lmodel$regression.results[1,5]
+    RMA_intercept <- lmodel$regression.results[4,2]
+    RMA_slope <- lmodel$regression.results[4,3]
+    RMA_p <- lmodel$regression.results[4,5]
+    
+    lmodel_n <- lmodel$n
+    lmodel_r <- lmodel$r
+    lmodel_rsq <- lmodel$rsquare
+    OLS_intercept_2SD <- OLS_intercept - lmodel$confidence.intervals[1,2]
+    OLS_slope_2SD <- OLS_slope - lmodel$confidence.intervals[1,4]
+    RMA_intercept_2SD <- RMA_intercept - lmodel$confidence.intervals[4,2]
+    RMA_slope_2SD <- RMA_slope - lmodel$confidence.intervals[4,4]
+    
+    All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = "High Mg calcite",
+                          Taxon_group = "Octocoral",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "OLS",
+                          p = OLS_p,
+                          Gradient = OLS_slope,
+                          Gradient_2SD = OLS_slope_2SD,
+                          Intercept = OLS_intercept,
+                          Intercept_2SD = OLS_intercept_2SD)
+    
+      All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = "High Mg calcite",
+                          Taxon_group = "Octocoral",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "RMA",
+                          p = RMA_p,
+                          Gradient = RMA_slope,
+                          Gradient_2SD = RMA_slope_2SD,
+                          Intercept = RMA_intercept,
+                          Intercept_2SD = RMA_intercept_2SD)
+}
+
+# Separate bamboo coral from this 
+
+for (i in Ratios) {
+    T_formula <- as.formula(paste0("Temperature_degreesC ~ ",i))
+    lmodel <- lmodel2(T_formula, data = Proxy_data[which(Proxy_data$Simple_taxon == "Keratoisidinae"),], "interval", "interval", 999)
+    
+    OLS_intercept <- lmodel$regression.results[1,2]
+    OLS_slope <- lmodel$regression.results[1,3]
+    OLS_p <- lmodel$regression.results[1,5]
+    RMA_intercept <- lmodel$regression.results[4,2]
+    RMA_slope <- lmodel$regression.results[4,3]
+    RMA_p <- lmodel$regression.results[4,5]
+    
+    lmodel_n <- lmodel$n
+    lmodel_r <- lmodel$r
+    lmodel_rsq <- lmodel$rsquare
+    OLS_intercept_2SD <- OLS_intercept - lmodel$confidence.intervals[1,2]
+    OLS_slope_2SD <- OLS_slope - lmodel$confidence.intervals[1,4]
+    RMA_intercept_2SD <- RMA_intercept - lmodel$confidence.intervals[4,2]
+    RMA_slope_2SD <- RMA_slope - lmodel$confidence.intervals[4,4]
+    
+    All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = "High Mg calcite",
+                          Taxon_group = "Keratoisidinae",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "OLS",
+                          p = OLS_p,
+                          Gradient = OLS_slope,
+                          Gradient_2SD = OLS_slope_2SD,
+                          Intercept = OLS_intercept,
+                          Intercept_2SD = OLS_intercept_2SD)
+    
+      All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = "High Mg calcite",
+                          Taxon_group = "Keratoisidinae",
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "RMA",
+                          p = RMA_p,
+                          Gradient = RMA_slope,
+                          Gradient_2SD = RMA_slope_2SD,
+                          Intercept = RMA_intercept,
+                          Intercept_2SD = RMA_intercept_2SD)
+}
+
+Keratoisidinae_regressions <- All_taxa_regressions[c(25:32),]
+All_taxa_regressions <- All_taxa_regressions[c(1:24),]
+
+Type = c("Stylasterid", "Scleractinia", "Octocoral")
+Mineralogy = c("Aragonite", "High Mg calcite")
+B_var <- c("Ba.Ca_umol.mol", "Coral_DBa")
+
+i <- "Ba.Ca..µmol.mol."
+j <- "Aragonite"
+a <- "Stylasterid"
+
+for (i in B_var) {
+  for (j in Mineralogy) {
+    for (a in Type) {
+      if(nrow(Barium_data[which(Barium_data$Mineralogy == j & Barium_data$Taxon_Type == a),]) != 0) {
+    Ba_formula <- as.formula(paste0("Temperature_degreesC ~ ",i))
+    lmodel <- lmodel2(Ba_formula, data = Barium_data[which(Barium_data$Mineralogy == j & Barium_data$Taxon_Type == a),], "interval", "interval", 999)
+    
+    OLS_intercept <- lmodel$regression.results[1,2]
+    OLS_slope <- lmodel$regression.results[1,3]
+    OLS_p <- lmodel$regression.results[1,5]
+    RMA_intercept <- lmodel$regression.results[4,2]
+    RMA_slope <- lmodel$regression.results[4,3]
+    RMA_p <- lmodel$regression.results[4,5]
+    
+    lmodel_n <- lmodel$n
+    lmodel_r <- lmodel$r
+    lmodel_rsq <- lmodel$rsquare
+    OLS_intercept_2SD <- OLS_intercept - lmodel$confidence.intervals[1,2]
+    OLS_slope_2SD <- OLS_slope - lmodel$confidence.intervals[1,4]
+    RMA_intercept_2SD <- RMA_intercept - lmodel$confidence.intervals[4,2]
+    RMA_slope_2SD <- RMA_slope - lmodel$confidence.intervals[4,4]
+    
+    All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = j,
+                          Taxon_group = a,
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "OLS",
+                          p = OLS_p,
+                          Gradient = OLS_slope,
+                          Gradient_2SD = OLS_slope_2SD,
+                          Intercept = OLS_intercept,
+                          Intercept_2SD = OLS_intercept_2SD)
+    
+      All_taxa_regressions <- All_taxa_regressions %>%
+      add_row(Relationship = paste0("Temperature ~ ",i),
+                          Mineralogy = j,
+                          Taxon_group = a,
+                          Source = "This_study",
+                          n = lmodel_n,
+                          r = lmodel_r,
+                          rsq = lmodel_rsq,
+                          Regression_type = "RMA",
+                          p = RMA_p,
+                          Gradient = RMA_slope,
+                          Gradient_2SD = RMA_slope_2SD,
+                          Intercept = RMA_intercept,
+                          Intercept_2SD = RMA_intercept_2SD)
+      } else {next}
+    }
+  }
+}
+
+All_taxa_regressions
+
+Multi_taxa_multi_proxy_path <- here::here("Data_R_processed", "Multi_taxa_thermometry")
+
+write.csv(All_taxa_regressions, 
+          file = paste0(path = Multi_taxa_multi_proxy_path,"Multi_taxa_multi_proxy_calibrations.csv"),
+          )
+
+
+```
+
+# Data plotting
+
+```{r proxy plots}
+
+# Mg/Ca graph ####
+
+Mg_Ca_plots <- Proxy_data %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Mg.Ca_mmol.mol, pch = Taxon_Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature_degreesC, y = Mg.Ca_mmol.mol, size = size), fill = "#619CFF", pch = 21) +
+    geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "Aragonite"),], method = lm, aes(x = Temperature_degreesC, y = Mg.Ca_mmol.mol, group = Minerology), col = "darkred", linetype = 2) +
+      geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], method = lm, aes(x = Temperature_degreesC, y = Mg.Ca_mmol.mol, group = Minerology), col = "#619CFF", linetype = 2) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),], method = lm, aes(x = Temperature_degreesC, y = Mg.Ca_mmol.mol, group = Taxon_Type), col = "darkblue",linetype = 1) +
+  scale_shape_manual(values = shapes) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  scale_y_continuous(breaks = seq(0, 180, by = 30), name = "Mg/Ca (mmol/mol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 30, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+
+
+# Sr/Ca graph ####
+
+Sr_Ca_plot <- Proxy_data %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Sr.Ca_mmol.mol, pch = Taxon_Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature_degreesC, y = Sr.Ca_mmol.mol, size = size),fill = "#619CFF", pch = 21) +
+    geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "Aragonite"),], method = lm, aes(x = Temperature_degreesC, y = Sr.Ca_mmol.mol, group = Minerology), col = "darkred", linetype = 2) +
+      geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], method = lm, aes(x = Temperature_degreesC, y = Sr.Ca_mmol.mol, group = Minerology), col = "#619CFF", linetype = 2) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),], method = lm, aes(x = Temperature_degreesC, y = Sr.Ca_mmol.mol, group = Taxon_Type), col = "darkblue",linetype = 1) +
+  scale_shape_manual(values = shapes) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  scale_y_continuous(limits = c(0,14), breaks = seq(0, 14, by = 2), name = "Sr/Ca (mmol/mol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 30, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+
+# S/Ca graph ####
+S_Ca_plot <- Proxy_data %>%
+  ggplot() +
+  geom_point(aes(x = Temperature, y = S_Ca, pch = Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature, y = S_Ca, fill = fill),size = 3, pch = 21) +
+  geom_smooth(method = lm, aes(x = Temperature, y = S_Ca, group = Minerology, col = Minerology), data = Proxy_data[which(Proxy_data$S_Ca <= 60),], linetype = 2) +
+  ggpmisc::stat_poly_eq(data  = Proxy_data[which(Proxy_data$Type == "Octocoral" & Proxy_data$S_Ca <= 60),], method = lm, col = "#6495ED",
+                        aes(x = Temperature, y = S_Ca, 
+                            label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) +
+  scale_shape_manual(values = shapes) +
+  scale_fill_manual(values = mysamples$fill, name = "Internode", labels = c(1,2,3)) +
+  scale_y_continuous(limits = c(0,120), breaks = seq(0, 120, by = 20), name = "S/Ca (mmol/mol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 30, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+
+# Sr_U graph ####
+
+Sr_U_plots <- Proxy_data %>%
+  filter(!is.na(Sr.U_mmol.mol)) %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Sr.U_mmol.mol , pch = Taxon_Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature_degreesC, y = Sr.U_mmol.mol , size = size),fill = "#619CFF", pch = 21) +
+      geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], method = lm, aes(x = Temperature_degreesC, y = Sr.U_mmol.mol , group = Minerology), col = "#619CFF", linetype = 2) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),], method = lm, aes(x = Temperature_degreesC, y = Sr.U_mmol.mol , group = Taxon_Type), col = "darkblue",linetype = 1) +
+  # ggpmisc::stat_poly_eq(data  = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], method = lm, col = "#619CFF",
+  #                       aes(x = Temperature, y = Sr_U, group = Minerology,
+  #                           label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) +
+  scale_shape_manual(values = shapes) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  scale_color_manual(values = c("#F8766D","#619CFF")) +
+  scale_y_continuous(limits = c(2,10), breaks = seq(2, 10, by = 1), name = "Sr/U (mmol/µmol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 35, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+ 
+# Li/Mg graph ####
+
+g <- function(x) ifelse(x >= 0 & x <= 30, 5.41*exp(-0.049*x), NA)
+
+m_HighMg <- nls(Li_Mg~a*exp(b*Temperature), Proxy_data[which(Proxy_data$Type == "Octocoral"),], start=list(a= 1, b=-0.01))
+summary(m_HighMg)
+
+m_Arag <- nls(Li_Mg~a*exp(b*Temperature), Proxy_data[which(Proxy_data$Minerology == "Aragonite"),], start=list(a= 1, b=-0.01))
+summary(m_Arag)
+
+Li_Mg_plot <- Proxy_data %>%
+  filter(!is.na(Li.Mg_mmol.mol)) %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Li.Mg_mmol.mol, pch = Taxon_Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature_degreesC, y = Li.Mg_mmol.mol, size = size),fill = "#619CFF", pch = 21) +
+  stat_smooth(data  = Proxy_data[which(Proxy_data$Minerology == "Aragonite"),], 
+              method = 'nls', linetype = 2, aes(x = Temperature_degreesC, y = Li.Mg_mmol.mol, group = Minerology), col = "darkred",
+              formula= (y~a*exp(b*x)), 
+              method.args = list(start=list(a=1, b=-0.01)), 
+              se = F) +
+    stat_smooth(data  = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], 
+              method = 'nls', linetype = 2, aes(x = Temperature_degreesC, y = Li.Mg_mmol.mol, group = Minerology), col = "#619CFF",
+              formula= (y~a*exp(b*x)), 
+              method.args = list(start=list(a=1, b=-0.01)), 
+              se = F) +
+  stat_smooth(data  = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),],
+              method = 'nls', linetype = 1, aes(x = Temperature_degreesC, y = Li.Mg_mmol.mol, group = Minerology),
+              formula= (y~a*exp(b*x)),
+              method.args = list(start=list(a=1, b=-0.01)),
+              se = F, col = "darkblue") +
+  scale_shape_manual(values = shapes) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  scale_y_continuous(limits = c(0,6), breaks = seq(0, 6, by = 1), name = "Li/Mg (µmol/mmol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 30, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+  
+
+# U/Ca graph ####
+U_Ca_plot <- Proxy_data %>%
+  filter(!is.na(U.Ca_mmol.mol)) %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = U.Ca_mmol.mol*1000, pch = Taxon_Type, col = Minerology)) +
+  geom_point(data  = mysamples, aes(x = Temperature_degreesC, y = U.Ca_mmol.mol*1000, size = size),fill = "#619CFF", pch = 21) +
+    geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "Aragonite"),], method = lm, aes(x = Temperature_degreesC, y = U.Ca_mmol.mol*1000, group = Minerology), col = "darkred", linetype = 2) +
+      geom_smooth(data = Proxy_data[which(Proxy_data$Minerology == "High Mg calcite"),], method = lm, aes(x = Temperature_degreesC, y = U.Ca_mmol.mol*1000, group = Minerology), col = "#619CFF", linetype = 2) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Taxon_Type == "Octocoral"),], method = lm, aes(x = Temperature_degreesC, y = U.Ca_mmol.mol*1000, group = Taxon_Type), col = "darkblue",linetype = 1) +
+  # ggpmisc::stat_poly_eq(data  = Proxy_data[which(Proxy_data$Type != "Foram" & Proxy_data$Minerology != "Both Aragonite and High Mg calcite"),], 
+  #                       method = lm,
+  #                       aes(x = Temperature, y = U_Ca*1000, group = Minerology, col = Minerology,
+  #                           label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) +
+  scale_shape_manual(values = shapes) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  scale_color_manual(values = c("#F8766D","#619CFF")) +
+  scale_y_continuous(limits = c(0,2), breaks = seq(0, 2, by = 0.5), name = "U/Ca (µmol/mol)") +
+  scale_x_continuous(limits = c(-5,30), breaks = seq(-5, 30, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+
+Proxy_data %>%
+  filter(!is.na(U_Ca)) %>%
+  ggplot() +
+  geom_point(aes(y = Temperature, x = U_Ca*1000, pch = Type, col = Minerology)) +
+  geom_point(data  = Proxy_data[which(Proxy_data$Full_taxon == "Keratoisis flexibilus"),], aes(y = Temperature, x = U_Ca*1000), pch = 21, size = 3, fill = "orange") +
+  geom_smooth(method = lm, aes(y = Temperature, x = U_Ca*1000, group = Minerology, col = Minerology)) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Type != "Foram" & Proxy_data$Minerology != "Both Aragonite and High Mg calcite"),], method = lm, aes(y = Temperature, x = U_Ca*1000, group = Minerology, col = Minerology), linetype = 2) +
+  geom_smooth(data  = Proxy_data[which(Proxy_data$Type == "Octocoral"),], method = lm, aes(y = Temperature, x = U_Ca*1000, group = Type), col = "darkblue", linetype = 1) +
+  ggpmisc::stat_poly_eq(data  = Proxy_data[which(Proxy_data$Type == "Octocoral"),], method = lm,label.y = 0.85, col = "darkblue",
+                        aes(y = Temperature, x = U_Ca*1000, 
+                            label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) +
+  ggpmisc::stat_poly_eq(data  = Proxy_data[which(Proxy_data$Type != "Foram" & Proxy_data$Minerology != "Both Aragonite and High Mg calcite" & Proxy_data$Minerology != "High Mg calcite"),], method = lm,
+                        aes(y = Temperature, x = U_Ca*1000, group = Minerology, col = Minerology,
+                            label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*"))) +
+  scale_shape_manual(values = shapes) +
+  scale_x_continuous(limits = c(0,2), breaks = seq(0, 2, by = 0.5), name = "U/Ca (µmol/mol)") +
+  scale_y_continuous(limits = c(-5,35), breaks = seq(-5, 35, by = 5), name = "Temperature (˚C)") +
+  theme_classic()
+
+# Ba/Ca coral ####
+mysamples_Ba <- Barium_data[which(Barium_data$Publication == "This study"),]
+mysamples_Ba$shape <- as.factor(c(rep(21,3), rep(22,3), rep(23,3), rep(24,3)))
+mysamples_Ba$fill <- c(rep(c("#FE6100","#785EF0", "#FFB000"),4))
+mysamples_Ba$size = as.factor((c(rep(c(3,6,9),4))))
+
+
+# Barium interpolated standard error between the three water profiles in Baffin Bay
+data_BaSw <- data.frame(Cruise_sample_ID = c("AMD21_23-1_1","AMD21_23-1_2", "AMD21_23-1_3",
+                                         "AMD21_23-6_1", "AMD21_23-6_2", "AMD21_23-6_3",
+                                         "AMD21_23-10_1", "AMD21_23-10_2", "AMD21_23-10_3",
+                                         "AMD21_23-16_1", "AMD21_23-16_2", "AMD21_23-16_3"),
+                        Ba.Ca_umol.mol = mysamples_Ba$Ba.Ca_umol.mol,
+                   Ba.SW_nmol.kg = mysamples_Ba$Ba.SW_nmol.kg,
+                   v.Ba.SW_nmol.kg = c(rep(4.37,3),
+                                       rep(4.35,3),
+                                       rep(4.32,3),
+                                       rep(4.36,3)))
+  
+
+Ba_coral_Ba_Sw <- Barium_data %>%
+  ggplot() +
+  # geom_errorbarh(data = data_BaSw, aes(xmin = Ba.SW_nmol.kg-v.Ba.SW_nmol.kg, xmax=Ba.SW_nmol.kg+v.Ba.SW_nmol.kg, y = Ba.Ca_umol.mol)) +
+  geom_errorbarh(aes(xmin = 40, xmax=44.35, y = 24.4), height = .5) +
+  geom_point(aes(x = Ba.SW_nmol.kg, y = Ba.Ca_umol.mol, pch = Taxon_Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = Ba.SW_nmol.kg, y = Ba.Ca_umol.mol, size = size), fill = "#619CFF", pch = 21) +
+    geom_smooth(method = lm, formula = y~0+x, aes(x = Ba.SW_nmol.kg, y = Ba.Ca_umol.mol, linetype = Taxon_Type), col = "darkred",
+              data = Barium_data[which(Barium_data$Mineralogy == "Aragonite"),]) +
+  geom_smooth(method = lm, formula = y~0+x, aes(x = Ba.SW_nmol.kg, y = Ba.Ca_umol.mol,linetype = Taxon_Type), col = "#619CFF",
+              data = Barium_data[which(Barium_data$Mineralogy == "High Mg calcite"),]) +
+  # ggpmisc::stat_poly_eq(method = lm, formula = y~0+x, aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol., col = Mineralogy, fill = Type, 
+  #                                                         label = paste(as.factor(levels(Barium_data$Type)), ..eq.label.., ..rr.label.., sep = "~~~")), 
+  #            data = Barium_data[which(Barium_data$Mineralogy != "mixed"),]) +
+  scale_x_continuous(limits = c(25,105), name = expression(paste("[Ba]"["SW"]*" (nmol.kg"^-1*")"))) +
+  scale_y_continuous(limits = c(5,25), name = expression(paste("Ba/Ca (µmol.mol"^-1*")"))) +
+  scale_color_manual(values = c("#F8766D","#009900", "#619CFF")) +
+  scale_linetype_manual(values = c(1,2,3)) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+Barium_data %>%
+  ggplot() +
+  geom_point(aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol., pch = Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol., size = size), fill = "#619CFF", pch = 21) +
+  geom_smooth(method = lm, formula = y~0+x, aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol., col = Mineralogy, linetype = Type), 
+              data = Barium_data[which(Barium_data$Mineralogy != "mixed"),]) +
+  ggpmisc::stat_poly_eq(method = lm, formula = y~0+x, aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol., col = Mineralogy, fill = Type, 
+                                                          label = paste(as.factor(levels(Barium_data$Type)), ..eq.label.., ..rr.label.., sep = "~~~")), 
+                        data = Barium_data[which(Barium_data$Mineralogy != "mixed"),]) +
+  ggpmisc::stat_fit_tb(method = "lm",
+              method.args = list(formula = y~0+x),
+              aes(x = X.Ba.SW..nmol.kg., y = Ba.Ca..µmol.mol.),
+              data = Barium_data[which(Barium_data$Mineralogy == "high-Mg calc." & Barium_data$Type == "Octocoral"),],
+              tb.vars = c("Type" = Barium_data$Type,
+                          "Minerology" = Barium_data$Mineralogy,
+                          Parameter = "term", 
+                          Estimate = "estimate", 
+                          "s.e." = "std.error", 
+                          "italic(F)" = "statistic", 
+                          "italic(P)" = "p.value"),
+              label.y = "bottom", label.x = "right",
+              parse = TRUE) +
+  scale_x_continuous(limits = c(25,105), name = expression(paste("[Ba]"["SW"]*" (nmol.kg"^-1*")"))) +
+  scale_y_continuous(limits = c(5,25), name = expression(paste("Ba/Ca (µmol.mol"^-1*")"))) +
+  scale_color_manual(values = c("#F8766D","#619CFF", "#009900")) +
+  scale_linetype_manual(values = c(1,2,3)) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+DBa_temperature <- Barium_data %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Coral_DBa, pch = Taxon_Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = Temperature_degreesC, y = Coral_DBa, size = size), fill = "#619CFF", pch = 21) +
+    geom_smooth(method = lm, aes(x = Temperature_degreesC, y = Coral_DBa, linetype = Taxon_Type), col = "darkred",
+              data = Barium_data[which(Barium_data$Mineralogy == "Aragonite"),]) +
+  geom_smooth(method = lm, aes(x = Temperature_degreesC, y = Coral_DBa, linetype = Taxon_Type), col = "#619CFF",
+              data = Barium_data[which(Barium_data$Mineralogy == "High Mg calcite"),]) +
+  geom_errorbar(aes(x = 14, ymin = 2.5, ymax = 2.73))+
+  # annotate("text", x = 13, y = 2.2, label = "atop(Scleractinia~p~`<`~0.01,r==-0.22~`,`~R^{2}==0.05)", col = "#F8766D", parse = T) +
+  # annotate("text", x = 13, y = 2, label = "atop(Stylasterid~p~`<`~0.01,r==-0.55~`,`~R^{2}==0.30)", col = "#F8766D", parse = T) +
+  # annotate("text", x = 5, y = 1.2, label = "atop(p~`>`~0.05,r==-0.59~`,`~R^{2}==0.34)", col = "#619CFF", parse = T) +
+  scale_x_continuous(limits = c(0,15), name = "Temperature (˚C)") +
+  scale_y_continuous(limits = c(1.2,2.8), name = expression(paste("D"["Ba"]))) +
+  scale_color_manual(values = c("#F8766D","#009900", "#619CFF")) +
+  scale_linetype_manual(values = c(2,3)) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+Ba_coral_temperature <- Barium_data %>%
+  ggplot() +
+  geom_point(aes(x = Temperature_degreesC, y = Ba.Ca_umol.mol, pch = Taxon_Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = Temperature_degreesC, y = Ba.Ca_umol.mol, size = size), fill = "#619CFF", pch = 21) +
+  geom_smooth(method = lm, aes(x = Temperature_degreesC, y = Ba.Ca_umol.mol, linetype = Taxon_Type), col = "darkred",
+              data = Barium_data[which(Barium_data$Mineralogy == "Aragonite"),]) +
+  geom_smooth(method = lm, aes(x = Temperature_degreesC, y = Ba.Ca_umol.mol, linetype = Taxon_Type), col = "#619CFF",
+              data = Barium_data[which(Barium_data$Mineralogy == "High Mg calcite"),]) +
+  # annotate("text", x = 10, y = 2.8, label = "atop(Scleractinia~p~`<`~0.01,r==-0.22~`,`~R^{2}==0.05)", col = "#F8766D", parse = T) +
+  # annotate("text", x = 10, y = 2.5, label = "atop(Stylasterid~p~`<`~0.01,r==-0.55~`,`~R^{2}==0.30)", col = "#F8766D", parse = T) +
+  # annotate("text", x = 5, y = 1.2, label = "atop(p~`>`~0.05,r==-0.59~`,`~R^{2}==0.34)", col = "#619CFF", parse = T) +
+  scale_x_continuous(limits = c(0,15), name = "Temperature (˚C)") +
+  scale_y_continuous(limits = c(5,25), name = expression(paste("Ba/Ca (µmol.mol"^-1*")"))) +
+  scale_color_manual(values = c("#F8766D","#009900","#619CFF")) +
+  scale_linetype_manual(values = c(1,2,3)) +
+  facet_wrap(~Taxon_Type, ncol = 1) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+
+Barium_data %>%
+  ggplot() +
+  geom_point(aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, pch = Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, size = size), fill = "#619CFF", pch = 21) +
+  geom_smooth(method = lm, aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, col = Mineralogy, linetype = Type), 
+              data = Barium_data[which(Barium_data$Mineralogy != "mixed"),]) +
+  scale_x_continuous(limits = c(2,5), name = expression(paste("Sr/Ca (mmol.mol"^-1*")"))) +
+  scale_y_continuous(limits = c(1,2.8), name = expression(paste("D"["Ba"]))) +
+  scale_color_manual(values = c("#F8766D","#619CFF", "#009900")) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+Barium_data %>%
+  ggplot() +
+  geom_point(aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, pch = Type, col = Mineralogy)) +
+  geom_point(data  = mysamples_Ba, aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, size = size), fill = "#619CFF", pch = 21) +
+  geom_smooth(method = lm, aes(x = Sr.Ca..mmol.mol., y = Coral.DBa, col = Mineralogy, linetype = Type), 
+              data = Barium_data[which(Barium_data$Mineralogy != "mixed"),]) +
+  scale_x_continuous(limits = c(9,13), name = expression(paste("Sr/Ca (mmol.mol"^-1*")"))) +
+  scale_y_continuous(limits = c(1,2.8), name = expression(paste("D"["Ba"]))) +
+  scale_color_manual(values = c("#F8766D","#619CFF", "#009900")) +
+  scale_size_manual(values = mysamples$size, name = expression(paste(italic("Keratoisis sp.")," Internode")), labels = c(1,2,3)) +
+  theme_classic()
+
+# All plots ####
+library(patchwork)
+layout <- "AB
+           AC
+           AD"
+
+Barium_plots <- Ba_coral_temperature + theme(strip.text = element_blank()) +
+  plot_spacer() +
+  Ba_coral_Ba_Sw +
+    DBa_temperature +
+  plot_layout(guides = "collect", design = layout)
+
+ggsave("Barium_plots.png",
+       plot = Barium_plots,
+       path = Multi_taxa_multi_proxy_path,
+       width = 28,
+       height = 30,
+       units = "cm",
+       scale = 1,
+       dpi = 600)  
+
+layout <- "AD
+           BE
+           CF"
+
+Multi_taxa_multi_proxy_plots <- Mg_Ca_plots + theme(axis.text.x = element_blank(), axis.title.x = element_blank()) +
+  Li_Mg_plot + theme(axis.text.x = element_blank(), axis.title.x = element_blank()) +
+  Sr_Ca_plot + plot_spacer() +
+  Sr_U_plots + theme(axis.text.x = element_blank(), axis.title.x = element_blank()) +
+  U_Ca_plot + 
+  plot_layout(design = layout, guides = "collect")
+
+ggsave("Multi_taxa_multi_proxy_plots.png",
+       plot = Multi_taxa_multi_proxy_plots,
+       path = Multi_taxa_multi_proxy_path,
+       width = 28,
+       height = 30,
+       units = "cm",
+       scale = 1,
+       dpi = 600)  
+
+
+
+```
+
